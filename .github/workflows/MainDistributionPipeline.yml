@@ -27,8 +27,7 @@ jobs:
       test_config: >
         {"test_env_variables":
           {
-            "AIRPORT_TEST_SERVER": "grpc+tls://airport-ci.query.farm",
-            "LOCAL_EXTENSION_REPO": "build/release/repository"
+            "AIRPORT_TEST_SERVER": "grpc+tls://airport-ci.query.farm"
           }
         }
     secrets:
