@@ -4,7 +4,10 @@
 #include <arrow/flight/client.h>
 #include <arrow/flight/types.h>
 #include <arrow/buffer.h>
+#include <chrono>
 #include <thread>
+#include <random>
+#include <algorithm>
 
 namespace duckdb
 {
