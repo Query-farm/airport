@@ -51,15 +51,13 @@ namespace duckdb
   static vector<LogicalType> AirportSchemaToLogicalTypes(
       ClientContext &context,
       std::shared_ptr<arrow::Schema> schema,
-      const string &server_location,
-      const flight::FlightDescriptor &flight_descriptor)
+      const AirportLocationDescriptor &location_descriptor)
   {
     ArrowSchemaWrapper schema_root;
 
-    AIRPORT_ARROW_ASSERT_OK_LOCATION_DESCRIPTOR(
+    AIRPORT_ARROW_ASSERT_OK_CONTAINER(
         ExportSchema(*schema, &schema_root.arrow_schema),
-        server_location,
-        flight_descriptor,
+        &location_descriptor,
         "ExportSchema");
 
     vector<LogicalType> return_types;
@@ -143,9 +141,9 @@ namespace duckdb
       // FIXME: need a way to specify the function stability.
       for (const auto &function : pair.second)
       {
-        auto input_types = AirportSchemaToLogicalTypes(context, function.input_schema(), function.server_location(), function.descriptor());
+        auto input_types = AirportSchemaToLogicalTypes(context, function.input_schema(), function);
 
-        auto output_types = AirportSchemaToLogicalTypes(context, function.schema(), function.server_location(), function.descriptor());
+        auto output_types = AirportSchemaToLogicalTypes(context, function.schema(), function);
         D_ASSERT(output_types.size() == 1);
 
         auto scalar_func = ScalarFunction(input_types, output_types[0],

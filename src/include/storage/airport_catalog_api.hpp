@@ -208,11 +208,11 @@ namespace duckdb
         const arrow::flight::FlightInfo &flight_info)
     {
       arrow::ipc::DictionaryMemo dictionary_memo;
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION_DESCRIPTOR(
+      AirportLocationDescriptor location_descriptor(server_location, flight_info.descriptor());
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
           auto extracted_schema,
           flight_info.GetSchema(&dictionary_memo),
-          server_location,
-          flight_info.descriptor(),
+          &location_descriptor,
           "GetSchema");
       return extracted_schema;
     }
