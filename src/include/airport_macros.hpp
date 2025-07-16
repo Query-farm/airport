@@ -50,9 +50,6 @@
   AIRPORT_RETURN_IF_LOCATION(error_prefix, !(result_name).ok(), (result_name).status(), location, message, ARROW_STRINGIFY(rexpr)); \
   lhs = std::move(result_name).ValueUnsafe();
 
-#define AIRPORT_ASSIGN_OR_RAISE_LOCATION_DESCRIPTOR(lhs, rexpr, location, descriptor, message) \
-  AIRPORT_ASSIGN_OR_RAISE_IMPL_LOCATION_DESCRIPTOR(ARROW_ASSIGN_OR_RAISE_NAME(_error_or_value, __COUNTER__), lhs, rexpr, location, descriptor, message);
-
 #define AIRPORT_ASSIGN_OR_RAISE_CONTAINER(lhs, rexpr, container, message) \
   AIRPORT_ASSIGN_OR_RAISE_IMPL_LOCATION_DESCRIPTOR(ARROW_ASSIGN_OR_RAISE_NAME(_error_or_value, __COUNTER__), lhs, rexpr, (container)->server_location(), (container)->descriptor(), message);
 

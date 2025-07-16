@@ -99,6 +99,8 @@ namespace duckdb
 
     auto &server_location = take_flight_params.server_location();
 
+    AirportLocationDescriptor location_descriptor(server_location, descriptor);
+
     // The main thing that needs to be answered in this function
     // are the names and return types and establishing the bind data.
     //
@@ -142,17 +144,17 @@ namespace duckdb
         augmented_parameters.at_value = take_flight_params.at_value();
         AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "table_function_flight_info", augmented_parameters);
 
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results, flight_client->DoAction(call_options, action), server_location, "airport_table_function_flight_info");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto action_results, flight_client->DoAction(call_options, action), &location_descriptor, "airport_table_function_flight_info");
 
         // The only item returned is a serialized flight info.
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto serialized_flight_info_buffer, action_results->Next(), server_location, "reading get_flight_info for table function");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto serialized_flight_info_buffer, action_results->Next(), &location_descriptor, "reading get_flight_info for table function");
 
         std::string_view serialized_flight_info(reinterpret_cast<const char *>(serialized_flight_info_buffer->body->data()), serialized_flight_info_buffer->body->size());
 
         // Now deserialize that flight info so we can use it.
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), server_location, "deserialize flight info");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), &location_descriptor, "deserialize flight info");
 
-        AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+        AIRPORT_ARROW_ASSERT_OK_CONTAINER(action_results->Drain(), &location_descriptor, "");
       }
       else if (table_entry != nullptr)
       {
@@ -160,10 +162,10 @@ namespace duckdb
         // the flight_info action rather than GetFlightInfo which allows additional parameters to be passed.
         AirportFlightInfoParameters get_flight_info_params;
 
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
             get_flight_info_params.descriptor,
             descriptor.SerializeToString(),
-            server_location,
+            &location_descriptor,
             "airport_take_flight: serialize flight descriptor");
 
         get_flight_info_params.at_unit = take_flight_params.at_unit();
@@ -171,25 +173,24 @@ namespace duckdb
 
         AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "flight_info", get_flight_info_params);
 
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results, flight_client->DoAction(call_options, action), server_location, "airport_table_function_flight_info");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto action_results, flight_client->DoAction(call_options, action), &location_descriptor, "airport_table_function_flight_info");
 
         // The only item returned is a serialized flight info.
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto serialized_flight_info_buffer, action_results->Next(), server_location, "reading flight_info for flight");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto serialized_flight_info_buffer, action_results->Next(), &location_descriptor, "reading flight_info for flight");
 
         std::string_view serialized_flight_info(reinterpret_cast<const char *>(serialized_flight_info_buffer->body->data()), serialized_flight_info_buffer->body->size());
 
         // Now deserialize that flight info so we can use it.
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), server_location, "deserialize flight info");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), &location_descriptor, "deserialize flight info");
 
-        AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+        AIRPORT_ARROW_ASSERT_OK_CONTAINER(action_results->Drain(), &location_descriptor, "");
       }
       else
       {
-        AIRPORT_ASSIGN_OR_RAISE_LOCATION_DESCRIPTOR(retrieved_flight_info,
-                                                    flight_client->GetFlightInfo(call_options, descriptor),
-                                                    server_location,
-                                                    descriptor,
-                                                    "");
+        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(retrieved_flight_info,
+                                          flight_client->GetFlightInfo(call_options, descriptor),
+                                          &location_descriptor,
+                                          "GetFlightInfo");
       }
 
       // Assert that the descriptor is the same as the one that was passed in.
@@ -201,11 +202,10 @@ namespace duckdb
       estimated_records = retrieved_flight_info->total_records();
 
       arrow::ipc::DictionaryMemo dictionary_memo;
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION_DESCRIPTOR(schema,
-                                                  retrieved_flight_info->GetSchema(&dictionary_memo),
-                                                  server_location,
-                                                  descriptor,
-                                                  "");
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(schema,
+                                        retrieved_flight_info->GetSchema(&dictionary_memo),
+                                        &location_descriptor,
+                                        "GetSchema");
     }
 
     auto ret = make_uniq<AirportTakeFlightBindData>(
@@ -1008,13 +1008,12 @@ namespace duckdb
         call_options.headers.emplace_back("airport-skip-producing-results", "1");
       }
 
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION_DESCRIPTOR(
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
           auto stream,
           flight_client->DoGet(
               call_options,
               endpoint.ticket),
-          server_location,
-          descriptor,
+          &bind_data,
           "");
 
       // FIXME: make sure that the schema returned from the server is the same as

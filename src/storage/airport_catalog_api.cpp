@@ -651,6 +651,8 @@ namespace duckdb
     // There is a single item returned which is the compressed schema data.
     AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto msgpack_serialized_response, action_results->Next(), server_location, "");
 
+    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+
     if (msgpack_serialized_response == nullptr)
     {
       throw AirportFlightException(server_location, "Failed to obtain schema data from Arrow Flight server via DoAction()");
@@ -682,8 +684,6 @@ namespace duckdb
           schema.tags,
           schema.contents));
     }
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
 
     return result;
   }
