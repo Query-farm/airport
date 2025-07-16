@@ -10,13 +10,13 @@
 #include "duckdb/catalog/catalog_entry/table_function_catalog_entry.hpp"
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "storage/airport_catalog_api.hpp"
-#include "../../duckdb/third_party/catch/catch.hpp"
 #include "storage/airport_transaction.hpp"
 #include "airport_request_headers.hpp"
 #include "duckdb/parser/parsed_data/alter_table_info.hpp"
 #include "storage/airport_alter_parameters.hpp"
 #include "duckdb/planner/tableref/bound_at_clause.hpp"
 #include "airport_schema_utils.hpp"
+#include "airport_rpc.hpp"
 
 namespace flight = arrow::flight;
 
@@ -68,15 +68,8 @@ namespace duckdb
       auto params = make_params(info, catalog, context, server_location);
       call_options.headers.emplace_back("airport-action-name", action_name);
       AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, action_name, params);
-      std::unique_ptr<arrow::flight::ResultStream> action_results;
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION(
-          action_results,
-          flight_client->DoAction(call_options, action),
-          server_location,
-          "airport_alter_table: " + action_name);
 
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto result_buffer, action_results->Next(), server_location, "");
-      AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+      auto result_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
       if (result_buffer == nullptr)
       {

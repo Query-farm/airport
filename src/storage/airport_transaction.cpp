@@ -10,6 +10,7 @@
 #include <arrow/flight/types.h>
 #include <arrow/buffer.h>
 #include "airport_macros.hpp"
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -48,24 +49,13 @@ namespace duckdb
     params.catalog_name = catalog_name;
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "create_transaction", params);
 
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results,
-                                     flight_client->DoAction(call_options, action),
-                                     server_location,
-                                     "calling create_transaction action");
-
-    // The only item returned is a serialized flight info.
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto result_buffer,
-                                     action_results->Next(),
-                                     server_location,
-                                     "reading create_transaction action result");
+    auto result_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
     AIRPORT_MSGPACK_UNPACK(
         GetTransactionIdentifierResult, result,
         (*(result_buffer->body)),
         server_location,
         "File to parse msgpack encoded create_transaction response");
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
 
     return result.identifier;
   }

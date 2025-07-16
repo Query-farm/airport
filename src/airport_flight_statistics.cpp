@@ -21,6 +21,7 @@
 #include "msgpack.hpp"
 #include "duckdb/storage/statistics/numeric_stats.hpp"
 #include "storage/airport_catalog.hpp"
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -101,20 +102,7 @@ namespace duckdb
     call_options.headers.emplace_back("airport-action-name", "column_statistics");
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "column_statistics", params);
 
-    AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto action_results,
-                                      flight_client->DoAction(call_options, action),
-                                      &descriptor,
-                                      "take_flight_statistics");
-
-    // The only item returned is a serialized column statistics.
-    AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto stats_buffer,
-                                      action_results->Next(),
-                                      &descriptor,
-                                      "reading take_flight_statistics for a column");
-
-    AIRPORT_ARROW_ASSERT_OK_CONTAINER(action_results->Drain(),
-                                      &descriptor,
-                                      "");
+    auto stats_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
     // Rather than doing this whole thing with msgpack, why not just return a single
     // row of an Arrow RecordBatch with the statistics.

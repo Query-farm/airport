@@ -23,7 +23,7 @@
 #include "airport_request_headers.hpp"
 #include "duckdb/common/arrow/schema_metadata.hpp"
 #include "airport_schema_utils.hpp"
-
+#include "airport_rpc.hpp"
 #include "duckdb/common/http_util.hpp"
 
 namespace flight = arrow::flight;
@@ -643,15 +643,12 @@ namespace duckdb
     std::unique_ptr<arrow::flight::ResultStream> action_results;
 
     auto &server_location = credentials->location();
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(action_results,
-                                     flight_client->DoAction(call_options, action),
-                                     server_location,
-                                     "");
 
-    // There is a single item returned which is the compressed schema data.
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto msgpack_serialized_response, action_results->Next(), server_location, "");
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+    auto msgpack_serialized_response = AirportCallAction(
+        flight_client,
+        call_options,
+        action,
+        server_location);
 
     if (msgpack_serialized_response == nullptr)
     {

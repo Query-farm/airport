@@ -12,6 +12,7 @@
 #include "airport_macros.hpp"
 #include <arrow/buffer.h>
 #include "msgpack.hpp"
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -171,14 +172,7 @@ namespace duckdb
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "create_schema", params);
 
-    std::unique_ptr<arrow::flight::ResultStream> action_results;
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(action_results,
-                                     flight_client->DoAction(call_options, action),
-                                     server_location,
-                                     "airport_create_schema");
-
-    // We need to load the serialized scheam ifnormation from the server call.
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto msgpack_serialized_response, action_results->Next(), server_location, "");
+    auto msgpack_serialized_response = AirportCallAction(flight_client, call_options, action, server_location);
 
     if (msgpack_serialized_response == nullptr)
     {
@@ -190,8 +184,6 @@ namespace duckdb
                            (*body_buffer),
                            server_location,
                            "File to parse msgpack encoded object from create_schema response");
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
 
     unordered_map<string, string> empty;
     auto real_entry = AirportAPISchema(

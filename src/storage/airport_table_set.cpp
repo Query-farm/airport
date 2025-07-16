@@ -41,6 +41,7 @@
 #include "airport_schema_utils.hpp"
 #include "storage/airport_alter_parameters.hpp"
 #include "duckdb/planner/tableref/bound_at_clause.hpp"
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -406,11 +407,7 @@ namespace duckdb
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "create_table", params);
 
-    std::unique_ptr<arrow::flight::ResultStream> action_results;
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(action_results, flight_client->DoAction(call_options, action), server_location, "airport_create_table");
-
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto result_buffer, action_results->Next(), server_location, "");
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+    auto result_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
     if (result_buffer == nullptr)
     {
@@ -499,11 +496,7 @@ namespace duckdb
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "flight_info", params);
 
-    std::unique_ptr<arrow::flight::ResultStream> action_results;
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(action_results, flight_client->DoAction(call_options, action), server_location, "airport_create_table");
-
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto result_buffer, action_results->Next(), server_location, "");
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+    auto result_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
     if (result_buffer == nullptr)
     {
