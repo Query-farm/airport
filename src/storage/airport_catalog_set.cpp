@@ -7,6 +7,7 @@
 #include "airport_macros.hpp"
 #include <arrow/buffer.h>
 #include <msgpack.hpp>
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -89,12 +90,7 @@ namespace duckdb
 
     auto &server_location = airport_catalog.attach_parameters()->location();
 
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results,
-                                     flight_client->DoAction(call_options, action),
-                                     server_location,
-                                     "airport_create_schema");
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "");
+    AirportCallAction(flight_client, call_options, action, server_location, false);
 
     D_ASSERT(entries.find(info.name) != entries.end());
 

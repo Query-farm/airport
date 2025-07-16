@@ -34,6 +34,7 @@
 #include "storage/airport_table_entry.hpp"
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include "airport_rpc.hpp"
 
 namespace duckdb
 {
@@ -145,17 +146,12 @@ namespace duckdb
         augmented_parameters.at_value = take_flight_params.at_value();
         AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "table_function_flight_info", augmented_parameters);
 
-        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto action_results, flight_client->DoAction(call_options, action), &location_descriptor, "airport_table_function_flight_info");
-
-        // The only item returned is a serialized flight info.
-        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto serialized_flight_info_buffer, action_results->Next(), &location_descriptor, "reading get_flight_info for table function");
+        auto serialized_flight_info_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
         std::string_view serialized_flight_info(reinterpret_cast<const char *>(serialized_flight_info_buffer->body->data()), serialized_flight_info_buffer->body->size());
 
         // Now deserialize that flight info so we can use it.
         AIRPORT_ASSIGN_OR_RAISE_CONTAINER(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), &location_descriptor, "deserialize flight info");
-
-        AIRPORT_ARROW_ASSERT_OK_CONTAINER(action_results->Drain(), &location_descriptor, "");
       }
       else if (table_entry != nullptr)
       {
@@ -174,17 +170,12 @@ namespace duckdb
 
         AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "flight_info", get_flight_info_params);
 
-        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto action_results, flight_client->DoAction(call_options, action), &location_descriptor, "airport_table_function_flight_info");
-
-        // The only item returned is a serialized flight info.
-        AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto serialized_flight_info_buffer, action_results->Next(), &location_descriptor, "reading flight_info for flight");
+        auto serialized_flight_info_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
         std::string_view serialized_flight_info(reinterpret_cast<const char *>(serialized_flight_info_buffer->body->data()), serialized_flight_info_buffer->body->size());
 
         // Now deserialize that flight info so we can use it.
         AIRPORT_ASSIGN_OR_RAISE_CONTAINER(retrieved_flight_info, arrow::flight::FlightInfo::Deserialize(serialized_flight_info), &location_descriptor, "deserialize flight info");
-
-        AIRPORT_ARROW_ASSERT_OK_CONTAINER(action_results->Drain(), &location_descriptor, "");
       }
       else
       {
@@ -691,16 +682,7 @@ namespace duckdb
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "endpoints", endpoints_request);
 
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results,
-                                     flight_client->DoAction(call_options, action),
-                                     server_location,
-                                     "airport endpoints action");
-
-    // The only item returned is a serialized flight info.
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto serialized_endpoint_info_buffer,
-                                     action_results->Next(),
-                                     server_location,
-                                     "reading endpoints");
+    auto serialized_endpoint_info_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
     std::string_view serialized_endpoint_info(reinterpret_cast<const char *>(serialized_endpoint_info_buffer->body->data()), serialized_endpoint_info_buffer->body->size());
 
@@ -709,8 +691,6 @@ namespace duckdb
                            serialized_endpoint_info,
                            server_location,
                            "File to parse msgpack encoded endpoints");
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(), server_location, "endpoints drain");
 
     endpoints.reserve(serialized_endpoints.size());
 
