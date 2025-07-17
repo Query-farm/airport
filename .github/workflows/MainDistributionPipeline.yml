@@ -20,7 +20,7 @@ jobs:
     with:
       duckdb_version: v1.3-ossivalis
       extension_name: airport
-      ci_tools_version: 1.3.2
+      ci_tools_version: v1.3.2
       extra_toolchains: parser_tools
       exclude_archs: "wasm_mvp;wasm_eh;wasm_threads;"
       vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
