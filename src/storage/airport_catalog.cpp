@@ -14,7 +14,7 @@
 #include <arrow/flight/types.h>
 #include <arrow/buffer.h>
 #include "airport_macros.hpp"
-
+#include "airport_rpc.hpp"
 #include "airport_request_headers.hpp"
 
 namespace duckdb
@@ -60,16 +60,7 @@ namespace duckdb
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "catalog_version", params);
 
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto action_results,
-                                     flight_client_->DoAction(call_options, action),
-                                     server_location,
-                                     "calling catalog_version action");
-
-    // The only item returned is a serialized flight info.
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto serialized_catalog_version_buffer,
-                                     action_results->Next(),
-                                     server_location,
-                                     "reading catalog_version action result");
+    auto serialized_catalog_version_buffer = AirportCallAction(flight_client_, call_options, action, server_location);
 
     AIRPORT_MSGPACK_UNPACK(AirportGetCatalogVersionResult, result,
                            (*serialized_catalog_version_buffer->body),
