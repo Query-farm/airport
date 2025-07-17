@@ -16,20 +16,20 @@ concurrency:
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
-    uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@main
+    uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@d2d8fea9330969894ebc43e0586ddb903b4142de
     with:
       duckdb_version: v1.3-ossivalis
       extension_name: airport
-      ci_tools_version: v1.3.2
+      ci_tools_version: d2d8fea9330969894ebc43e0586ddb903b4142de
       extra_toolchains: parser_tools
       exclude_archs: "wasm_mvp;wasm_eh;wasm_threads;"
       vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
-      test_config: >
-        {"test_env_variables":
-          {
-            "AIRPORT_TEST_SERVER": "grpc+tls://airport-ci.query.farm"
-          }
-        }
+      # test_config: >
+      #   {"test_env_variables":
+      #     {
+      #       "AIRPORT_TEST_SERVER": "grpc+tls://airport-ci.query.farm"
+      #     }
+      #   }
     secrets:
       VCPKG_CACHING_AWS_ACCESS_KEY_ID: ${{ secrets.VCPKG_CACHING_AWS_ACCESS_KEY_ID }}
       VCPKG_CACHING_AWS_SECRET_ACCESS_KEY: ${{ secrets.VCPKG_CACHING_AWS_SECRET_ACCESS_KEY }}
