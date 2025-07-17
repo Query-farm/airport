@@ -24,7 +24,7 @@ namespace duckdb
 
     auto &op_name = action.type;
 
-    int max_retries = 5;
+    int max_retries = 15;
     std::chrono::milliseconds initial_delay{100};
     std::chrono::milliseconds max_delay{5000};
     double backoff_multiplier = 2.0;
