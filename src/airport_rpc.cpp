@@ -12,11 +12,12 @@
 namespace duckdb
 {
 
-  std::unique_ptr<arrow::flight::Result> AirportCallAction(std::shared_ptr<arrow::flight::FlightClient> flight_client,
-                                                           const arrow::flight::FlightCallOptions call_options,
-                                                           const arrow::flight::Action &action,
-                                                           const std::string &server_location,
-                                                           bool want_result)
+  std::unique_ptr<arrow::flight::Result> AirportCallAction(
+      std::shared_ptr<arrow::flight::FlightClient> flight_client,
+      const arrow::flight::FlightCallOptions call_options,
+      const arrow::flight::Action &action,
+      const std::string &server_location,
+      bool want_result)
   {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -29,11 +30,29 @@ namespace duckdb
     double backoff_multiplier = 2.0;
     double jitter_factor = 0.1; // 10% jitter
 
+    std::unique_ptr<arrow::flight::Result> results_buffer = nullptr;
     std::unique_ptr<arrow::flight::ResultStream> action_results = nullptr;
 
-    // Since Flight servers can be busy implement exponential backoff with jitter
-    // to avoid overwhelming the server with retries, if we get IO errors.
+    auto compute_delay = [&](int attempt)
+    {
+      auto delay = initial_delay;
+      for (int i = 0; i < attempt; ++i)
+      {
+        delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration<double, std::milli>(delay.count() * backoff_multiplier));
+      }
+      delay = std::min(delay, max_delay);
+      if (jitter_factor > 0)
+      {
+        std::uniform_real_distribution<double> jitter_dist(
+            1.0 - jitter_factor, 1.0 + jitter_factor);
+        delay = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration<double, std::milli>(delay.count() * jitter_dist(gen)));
+      }
+      return delay;
+    };
 
+    // Retry DoAction
     for (int attempt = 0; attempt <= max_retries; ++attempt)
     {
       auto invoke_result = flight_client->DoAction(call_options, action);
@@ -44,44 +63,35 @@ namespace duckdb
         break;
       }
 
-      // If this was the last attempt, throw the exception
       if (attempt == max_retries || !invoke_result.status().IsIOError())
       {
         throw AirportFlightException(server_location, invoke_result.status(),
                                      (op_name + ": invoke"), {});
       }
 
-      // Calculate delay with exponential backoff
-      auto delay = initial_delay;
-      for (int i = 0; i < attempt; ++i)
-      {
-        delay = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::duration<double, std::milli>(delay.count() * backoff_multiplier));
-      }
-
-      // Cap the delay at max_delay
-      delay = std::min(delay, max_delay);
-
-      // Add jitter to avoid thundering herd
-      if (jitter_factor > 0)
-      {
-        std::uniform_real_distribution<double> jitter_dist(
-            1.0 - jitter_factor, 1.0 + jitter_factor);
-        delay = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::duration<double, std::milli>(delay.count() * jitter_dist(gen)));
-      }
-
-      // Sleep before retry
-      std::this_thread::sleep_for(delay);
+      std::this_thread::sleep_for(compute_delay(attempt));
     }
 
-    std::unique_ptr<arrow::flight::Result> results_buffer = nullptr;
     if (want_result)
     {
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION(results_buffer,
-                                       action_results->Next(),
-                                       server_location,
-                                       (op_name + ": reading result"));
+      // Retry action_results->Next()
+      for (int attempt = 0; attempt <= max_retries; ++attempt)
+      {
+        auto next_result = action_results->Next();
+        if (next_result.ok())
+        {
+          results_buffer = std::move(next_result).ValueUnsafe();
+          break;
+        }
+
+        if (attempt == max_retries || !next_result.status().IsIOError())
+        {
+          throw AirportFlightException(server_location, next_result.status(),
+                                       (op_name + ": reading result"), {});
+        }
+
+        std::this_thread::sleep_for(compute_delay(attempt));
+      }
     }
 
     AIRPORT_ARROW_ASSERT_OK_LOCATION(action_results->Drain(),
@@ -90,4 +100,5 @@ namespace duckdb
 
     return results_buffer;
   }
+
 }
