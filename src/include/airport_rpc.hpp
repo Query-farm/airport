@@ -1,8 +1,6 @@
 #pragma once
 
 #include "duckdb.hpp"
-#include <memory>
-#include <string>
 
 // Forward declarations for Arrow Flight types
 namespace arrow
