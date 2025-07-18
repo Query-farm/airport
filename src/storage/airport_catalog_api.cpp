@@ -204,6 +204,7 @@ namespace duckdb
     return std::make_pair(response->status, response->body);
   }
 
+#undef CreateDirectory
   static std::pair<const string, const string> GetCachePath(FileSystem &fs, const string &input, const string &baseDir)
   {
     auto cacheDir = fs.JoinPath(baseDir, "airport_cache");
@@ -234,6 +235,7 @@ namespace duckdb
     return std::make_pair(subDir, fs.JoinPath(subDir, fileName));
   }
 
+#undef MoveFile
   void AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(ClientContext &context,
                                                               const AirportSchemaCollection &collection,
                                                               const string &catalog_name,
