@@ -16,11 +16,11 @@ concurrency:
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
-    uses: rustyconover/extension-ci-tools/.github/workflows/_extension_distribution.yml@05dcb7d933076855a8992ec185d9efa1b83641cc
+    uses: rustyconover/extension-ci-tools/.github/workflows/_extension_distribution.yml@e849d92603a1595bf2260227d773a41b52ec8f8f
     with:
       duckdb_version: main
       extension_name: airport
-      ci_tools_version: 05dcb7d933076855a8992ec185d9efa1b83641cc
+      ci_tools_version: e849d92603a1595bf2260227d773a41b52ec8f8f
       extra_toolchains: parser_tools
       exclude_archs: "wasm_mvp;wasm_eh;wasm_threads;"
       vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
