@@ -37,7 +37,7 @@ namespace duckdb
     MSGPACK_DEFINE_MAP(flight_descriptor, column_name, type)
   };
 
-  unique_ptr<BaseStatistics> AirportTakeFlightStatistics(ClientContext &context, const FunctionData *bind_data, column_t column_index)
+  unique_ptr<BaseStatistics> AirportTakeFlightStatistics(ClientContext &context, const FunctionData *bind_data, const column_t column_index)
   {
     auto &data = bind_data->Cast<AirportTakeFlightBindData>();
 
@@ -100,9 +100,6 @@ namespace duckdb
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "column_statistics", params);
 
     auto stats_buffer = AirportCallAction(flight_client, call_options, action, server_location);
-
-    // Rather than doing this whole thing with msgpack, why not just return a single
-    // row of an Arrow RecordBatch with the statistics.
 
     auto reader = std::make_unique<arrow::io::BufferReader>(stats_buffer->body);
 
@@ -174,7 +171,7 @@ namespace duckdb
 
     stats_chunk.Verify();
 
-    auto required_fields = {"min", "max", "has_not_null", "has_null", "distinct_count"};
+    const auto required_fields = {"min", "max", "has_not_null", "has_null", "distinct_count"};
     for (const auto &field : required_fields)
     {
       if (name_indexes.find(field) == name_indexes.end())
