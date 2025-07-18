@@ -5,6 +5,10 @@
 namespace duckdb
 {
 
+  duckdb::unique_ptr<duckdb::ArrowType> AirportGetArrowType(
+      duckdb::DBConfig &config,
+      ArrowSchema &schema_item);
+
   void AirportExamineSchema(
       ClientContext &context,
       const ArrowSchemaWrapper &schema_root,

@@ -23,6 +23,7 @@
 #include "duckdb/storage/statistics/numeric_stats.hpp"
 #include "storage/airport_catalog.hpp"
 #include "airport_rpc.hpp"
+#include "airport_schema_utils.hpp"
 
 namespace duckdb
 {
@@ -56,12 +57,7 @@ namespace duckdb
     auto &config = DBConfig::GetConfig(context);
 
     // printf("Column name is %s\n", schema->name);
-    auto arrow_type = ArrowType::GetArrowLogicalType(config, *schema);
-    if (schema->dictionary)
-    {
-      auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema->dictionary);
-      arrow_type->SetDictionary(std::move(dictionary_type));
-    }
+    auto arrow_type = AirportGetArrowType(config, *schema);
     auto duck_type = arrow_type->GetDuckType();
 
     // Talk to the server to get the statistics for the column.
@@ -127,7 +123,6 @@ namespace duckdb
         "ExportSchema");
 
     vector<LogicalType> all_types;
-    //    vector<std::string> parameter_names;
     ArrowTableType arrow_table;
     std::unordered_map<std::string, idx_t> name_indexes;
 
@@ -135,13 +130,7 @@ namespace duckdb
     {
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
 
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
-
-      if (schema_item.dictionary)
-      {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
-        arrow_type->SetDictionary(std::move(dictionary_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
       arrow_table.AddColumn(col_index, std::move(arrow_type));

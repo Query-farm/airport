@@ -7,6 +7,20 @@
 namespace duckdb
 {
 
+  duckdb::unique_ptr<duckdb::ArrowType> AirportGetArrowType(
+      duckdb::DBConfig &config,
+      ArrowSchema &schema_item)
+  {
+    auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
+
+    if (schema_item.dictionary)
+    {
+      auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
+      arrow_type->SetDictionary(std::move(dictionary_type));
+    }
+    return arrow_type;
+  }
+
   bool AirportFieldMetadataIsRowId(const char *metadata)
   {
     if (metadata == nullptr)
@@ -64,7 +78,6 @@ namespace duckdb
       {
         throw InvalidInputException("AirportExamineSchema: released schema passed");
       }
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema);
 
       // Determine if the column is the rowid column by looking at the metadata
       // on the column.
@@ -78,11 +91,7 @@ namespace duckdb
         }
       }
 
-      if (schema.dictionary)
-      {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema.dictionary);
-        arrow_type->SetDictionary(std::move(dictionary_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema);
 
       const idx_t column_id = is_rowid_column ? COLUMN_IDENTIFIER_ROW_ID : col_idx;
 

@@ -616,7 +616,7 @@ namespace duckdb
 
       if (AirportFieldMetadataIsRowId(schema_child.metadata))
       {
-        auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_child);
+        auto arrow_type = AirportGetArrowType(config, schema_child);
         return arrow_type->GetDuckType();
       }
     }

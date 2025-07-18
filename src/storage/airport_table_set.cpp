@@ -109,7 +109,7 @@ namespace duckdb
 
       if (AirportFieldMetadataIsRowId(column.metadata))
       {
-        rowid_type = ArrowType::GetArrowLogicalType(config, column)->GetDuckType();
+        rowid_type = AirportGetArrowType(config, column)->GetDuckType();
 
         // So the skipping here is a problem, since its assumed
         // that the return_type and column_names can be easily indexed.
