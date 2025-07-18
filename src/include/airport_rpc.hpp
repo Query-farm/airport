@@ -1,8 +1,8 @@
 #pragma once
 
 #include "duckdb.hpp"
-#include <memory>
-#include <string>
+#include <arrow/flight/client.h>
+#include <arrow/flight/types.h>
 
 namespace duckdb
 {
