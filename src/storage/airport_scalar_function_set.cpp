@@ -73,13 +73,7 @@ namespace duckdb
       {
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
-
-      if (schema_item.dictionary)
-      {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
-        arrow_type->SetDictionary(std::move(dictionary_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       // Indicate that the field should select any type.
       bool is_any_type = false;

@@ -99,13 +99,7 @@ namespace duckdb
       }
 
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
-
-      if (schema_item.dictionary)
-      {
-        auto dict_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
-        arrow_type->SetDictionary(std::move(dict_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       arg_types.push_back(arrow_type->GetDuckType());
       arg_indexes.push_back(col_index);
@@ -115,13 +109,7 @@ namespace duckdb
     {
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
 
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
-
-      if (schema_item.dictionary)
-      {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
-        arrow_type->SetDictionary(std::move(dictionary_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
       arrow_table.AddColumn(col_index, std::move(arrow_type));

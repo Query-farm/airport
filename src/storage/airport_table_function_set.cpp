@@ -119,7 +119,8 @@ namespace duckdb
         }
       }
       input_schema_names.push_back(name);
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_field);
+      auto arrow_type = AirportGetArrowType(config, schema_field);
+
       if (is_any_type)
       {
         auto &found_type = input.inputs[col_idx - seen_named_parameters].type();
@@ -343,13 +344,7 @@ namespace duckdb
       {
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
-
-      if (schema_item.dictionary)
-      {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
-        arrow_type->SetDictionary(std::move(dictionary_type));
-      }
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       auto metadata = ArrowSchemaMetadata(schema_item.metadata);
 
