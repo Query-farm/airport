@@ -152,8 +152,6 @@ namespace duckdb
     airport_add_standard_headers(call_options, airport_catalog.attach_parameters()->location());
     airport_add_authorization_header(call_options, airport_catalog.attach_parameters()->auth_token());
 
-    call_options.headers.emplace_back("airport-action-name", "create_schema");
-
     auto flight_client = AirportAPI::FlightClientForLocation(airport_catalog.attach_parameters()->location());
 
     AirportCreateSchemaParameters params;

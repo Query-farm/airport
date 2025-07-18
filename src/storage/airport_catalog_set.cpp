@@ -80,7 +80,6 @@ namespace duckdb
     case CatalogType::SCHEMA_ENTRY:
       params.type = "schema";
       action_type = "drop_schema";
-      call_options.headers.emplace_back("airport-action-name", action_type);
       break;
     default:
       throw NotImplementedException("AirportCatalogSet::DropEntry for type");

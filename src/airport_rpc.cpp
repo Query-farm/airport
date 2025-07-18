@@ -14,7 +14,7 @@ namespace duckdb
 
   std::unique_ptr<arrow::flight::Result> AirportCallAction(
       std::shared_ptr<arrow::flight::FlightClient> flight_client,
-      const arrow::flight::FlightCallOptions call_options,
+      arrow::flight::FlightCallOptions &call_options,
       const arrow::flight::Action &action,
       const std::string &server_location,
       bool want_result)
@@ -51,6 +51,8 @@ namespace duckdb
       }
       return delay;
     };
+
+    call_options.headers.emplace_back("airport-action-name", action.type);
 
     // Retry DoAction
     for (int attempt = 0; attempt <= max_retries; ++attempt)

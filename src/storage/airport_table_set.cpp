@@ -188,10 +188,8 @@ namespace duckdb
   void AirportTableSet::LoadEntries(ClientContext &context)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
-
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
-    // TODO: handle out-of-order columns using position property
     auto contents = AirportAPI::GetSchemaItems(
         context,
         catalog.GetDBPath(),
@@ -401,8 +399,6 @@ namespace duckdb
     airport_add_standard_headers(call_options, airport_catalog.attach_parameters()->location());
     airport_add_authorization_header(call_options, airport_catalog.attach_parameters()->auth_token());
 
-    call_options.headers.emplace_back("airport-action-name", "create_table");
-
     auto flight_client = AirportAPI::FlightClientForLocation(airport_catalog.attach_parameters()->location());
 
     AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "create_table", params);
@@ -489,8 +485,6 @@ namespace duckdb
 
     airport_add_standard_headers(call_options, airport_catalog.attach_parameters()->location());
     airport_add_authorization_header(call_options, airport_catalog.attach_parameters()->auth_token());
-
-    call_options.headers.emplace_back("airport-action-name", "flight_info");
 
     auto flight_client = AirportAPI::FlightClientForLocation(airport_catalog.attach_parameters()->location());
 

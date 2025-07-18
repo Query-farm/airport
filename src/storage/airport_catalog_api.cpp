@@ -632,8 +632,6 @@ namespace duckdb
     airport_add_standard_headers(call_options, credentials->location());
     airport_add_authorization_header(call_options, credentials->auth_token());
 
-    call_options.headers.emplace_back("airport-action-name", "list_schemas");
-
     auto flight_client = FlightClientForLocation(credentials->location());
 
     AirportSerializedCatalogSchemaRequest catalog_request = {catalog_name};
