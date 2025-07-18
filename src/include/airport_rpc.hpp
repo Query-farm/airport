@@ -1,18 +1,8 @@
 #pragma once
 
 #include "duckdb.hpp"
-
-// Forward declarations for Arrow Flight types
-namespace arrow
-{
-  namespace flight
-  {
-    class FlightClient;
-    class FlightCallOptions;
-    class Action;
-    class Result;
-  } // namespace flight
-} // namespace arrow
+#include <arrow/flight/client.h>
+#include <arrow/flight/types.h>
 
 namespace duckdb
 {
