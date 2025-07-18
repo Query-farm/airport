@@ -34,7 +34,7 @@ namespace duckdb
   {
     auto &fs = FileSystem::GetFileSystem(context);
 
-    string home_directory = fs.GetHomeDirectory();
+    const string home_directory = fs.GetHomeDirectory();
     // exception if the home directory does not exist, don't create whatever we think is home
     if (!fs.DirectoryExists(home_directory))
     {
@@ -42,9 +42,7 @@ namespace duckdb
                         "home_directory='/path/to/dir' option.",
                         home_directory);
     }
-    string cache_path = home_directory;
-    cache_path = fs.JoinPath(cache_path, ".duckdb");
-    return cache_path;
+    return fs.JoinPath(home_directory, ".duckdb");
   }
 
   void AirportSchemaSet::LoadEntireSet(ClientContext &context)
