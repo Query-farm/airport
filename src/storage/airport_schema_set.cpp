@@ -65,66 +65,55 @@ namespace duckdb
     {
       return;
     }
-    //    printf("Calling LoadEntries on AirportSchemaSet, catalog basically\n");
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
-    string cache_path = DuckDBHomeDirectory(context);
+    const string cache_path = DuckDBHomeDirectory(context);
+    const auto &catalog_name = airport_catalog.internal_name();
 
-    // catalog.GetName() is the catalog name even if its been aliased.
-    // airport_catalog.internal_name() is the name of the database as passed ot attach.
-    auto returned_collection = AirportAPI::GetSchemas(airport_catalog.internal_name(), airport_catalog.attach_parameters());
+    auto returned_collection = AirportAPI::GetSchemas(
+        catalog_name, airport_catalog.attach_parameters());
 
     airport_catalog.loaded_catalog_version = returned_collection->version_info;
-
     collection = std::move(returned_collection);
+
+    if (!populated_entire_set &&
+        !collection->source.sha256.empty() &&
+        (collection->source.serialized.has_value() ||
+         collection->source.url.has_value()))
+    {
+      AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(
+          context, *collection, catalog_name, cache_path);
+    }
+
+    populated_entire_set = true;
 
     std::unordered_set<string> seen_schema_names;
 
-    // So the database can have all of its schemas sent at the top level.
-    //
-    // It can return a URL or an inline serialization of all saved schemas
-    //
-    // When the individual schemas are loaded they will be loaded through the
-    // cached content that is already present on the disk, or if the schema
-    // is serialized inline that will be used.
-    //
-    if (!populated_entire_set &&
-        !collection->source.sha256.empty() &&
-        (collection->source.serialized.has_value() || collection->source.url.has_value()))
-    {
-      auto cache_path = DuckDBHomeDirectory(context);
-
-      // Populate the on-disk schema cache from the catalog while contents_url.
-      AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(context, *collection, airport_catalog.internal_name(), cache_path);
-    }
-    populated_entire_set = true;
-
     for (const auto &schema : collection->schemas)
     {
+      const auto &schema_name = schema.schema_name();
+
+      if (schema_name.empty())
+      {
+        throw InvalidInputException("Airport: catalog '%s' contains a schema with an empty name", catalog_name);
+      }
+      if (!seen_schema_names.insert(schema_name).second)
+      {
+        throw InvalidInputException("Airport: catalog '%s' contains duplicate schema name '%s'", catalog_name, schema_name.c_str());
+      }
+
       CreateSchemaInfo info;
+      info.schema = schema_name;
+      info.internal = IsInternalTable(schema.catalog_name(), schema_name);
 
-      if (schema.schema_name().empty())
-      {
-        throw InvalidInputException("Airport: catalog '%s' contained a schema with an empty name", airport_catalog.internal_name());
-      }
-      if (!(seen_schema_names.find(schema.schema_name()) == seen_schema_names.end()))
-      {
-        throw InvalidInputException("Airport: catalog '%s' contained two or more schemas named %s", airport_catalog.internal_name(), schema.schema_name().c_str());
-      }
-
-      seen_schema_names.insert(schema.schema_name());
-
-      info.schema = schema.schema_name();
-      info.internal = IsInternalTable(schema.catalog_name(), schema.schema_name());
       auto schema_entry = make_uniq<AirportSchemaEntry>(catalog, info, cache_path, schema);
-
-      // Since these are DuckDB attributes, we need to copy them manually.
       schema_entry->comment = schema.comment();
-      for (auto &tag : schema.tags())
+
+      for (const auto &[key, value] : schema.tags())
       {
-        schema_entry->tags[tag.first] = tag.second;
+        schema_entry->tags[key] = value;
       }
-      // printf("Creating schema %s\n", schema.schema_name.c_str());
+
       CreateEntry(std::move(schema_entry));
     }
 
