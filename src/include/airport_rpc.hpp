@@ -4,18 +4,6 @@
 #include <memory>
 #include <string>
 
-// Forward declarations for Arrow Flight types
-namespace arrow
-{
-  namespace flight
-  {
-    class FlightClient;
-    class FlightCallOptions;
-    class Action;
-    class Result;
-  } // namespace flight
-} // namespace arrow
-
 namespace duckdb
 {
 
