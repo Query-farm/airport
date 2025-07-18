@@ -4,6 +4,6 @@
 
 namespace duckdb
 {
-  unique_ptr<BaseStatistics> AirportTakeFlightStatistics(ClientContext &context, const FunctionData *bind_data, column_t column_index);
+  unique_ptr<BaseStatistics> AirportTakeFlightStatistics(ClientContext &context, const FunctionData *bind_data, const column_t column_index);
 
 }
