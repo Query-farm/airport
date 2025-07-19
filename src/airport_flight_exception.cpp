@@ -16,51 +16,102 @@ using namespace duckdb_yyjson; // NOLINT
 namespace duckdb
 {
 
-  static std::string joinWithSlash(const std::vector<std::string> &vec)
+  namespace
   {
-    if (vec.empty())
-      return ""; // Handle empty vector case
-
-    std::ostringstream result;
-    for (size_t i = 0; i < vec.size(); ++i)
+    std::string joinWithSlash(const std::vector<std::string> &vec)
     {
-      result << vec[i];
-      if (i != vec.size() - 1)
+      if (vec.empty())
+        return ""; // Handle empty vector case
+
+      std::ostringstream result;
+      for (size_t i = 0; i < vec.size(); ++i)
       {
-        result << '/';
+        result << vec[i];
+        if (i != vec.size() - 1)
+        {
+          result << '/';
+        }
+      }
+      return result.str();
+    }
+
+    // Function to split string based on a delimiter
+    std::vector<std::string> split(const std::string &input, const std::string &delimiter)
+    {
+      std::vector<std::string> parts;
+      size_t pos = 0;
+      size_t start = 0;
+
+      while ((pos = input.find(delimiter, start)) != std::string::npos)
+      {
+        parts.push_back(input.substr(start, pos - start));
+        start = pos + delimiter.length();
+      }
+
+      // Add the last part after the final delimiter
+      parts.push_back(input.substr(start));
+
+      return parts;
+    }
+
+    void extract_grpc_debug_context(const string &value, std::unordered_map<string, string> &result)
+    {
+      if (value.find("gRPC client debug context: ") != std::string::npos)
+      {
+        // Extract the gRPC context from the error message
+        std::vector<std::string> parts = split(value, "gRPC client debug context: ");
+        if (parts.size() > 1)
+        {
+          result["grpc_context"] = parts[1]; // Store the gRPC context in the result map
+        }
       }
     }
-    return result.str();
-  }
 
-  // Function to split string based on a delimiter
-  static std::vector<std::string> split(const std::string &input, const std::string &delimiter)
-  {
-    std::vector<std::string> parts;
-    size_t pos = 0;
-    size_t start = 0;
-
-    while ((pos = input.find(delimiter, start)) != std::string::npos)
+    string extract_grpc_context_prefix(const string &value)
     {
-      parts.push_back(input.substr(start, pos - start));
-      start = pos + delimiter.length();
+      if (value.find("gRPC client debug context: ") != std::string::npos)
+      {
+        // Extract the gRPC context from the error message
+        std::vector<std::string> parts = split(value, "gRPC client debug context: ");
+        if (parts.size() > 1)
+        {
+          return parts[0]; // Return the part before the gRPC context
+        }
+      }
+      return value; // Return the original value if no gRPC context is found
     }
 
-    // Add the last part after the final delimiter
-    parts.push_back(input.substr(start));
-
-    return parts;
-  }
-
-  static void extract_grpc_debug_context(const string &value, std::unordered_map<string, string> &result)
-  {
-    if (value.find("gRPC client debug context: ") != std::string::npos)
+    string build_error_message(const string &location, const string &descriptor, const string &msg, const string &status)
     {
-      // Extract the gRPC context from the error message
-      std::vector<std::string> parts = split(value, "gRPC client debug context: ");
-      if (parts.size() > 1)
+      // Handle other descriptor types if needed
+      string descriptor_joiner = "/";
+      if (location.back() == '/')
       {
-        result["grpc_context"] = parts[1]; // Store the gRPC context in the result map
+        descriptor_joiner = "";
+      }
+
+      string extra_msg = "";
+      if (!msg.empty())
+      {
+        extra_msg = msg + " ";
+      }
+
+      return "Airport @ " + location + descriptor_joiner + descriptor + ": " + extra_msg + status;
+    }
+
+    string descriptor_to_string(const flight::FlightDescriptor &descriptor)
+    {
+      if (descriptor.type == flight::FlightDescriptor::DescriptorType::PATH)
+      {
+        return joinWithSlash(descriptor.path);
+      }
+      else if (descriptor.type == flight::FlightDescriptor::DescriptorType::CMD)
+      {
+        return "'" + descriptor.cmd + "'";
+      }
+      else
+      {
+        throw NotImplementedException("Unsupported Arrow Flight descriptor type");
       }
     }
   }
@@ -121,54 +172,6 @@ namespace duckdb
       }
     }
     return result;
-  }
-
-  static string extract_grpc_context_prefix(const string &value)
-  {
-    if (value.find("gRPC client debug context: ") != std::string::npos)
-    {
-      // Extract the gRPC context from the error message
-      std::vector<std::string> parts = split(value, "gRPC client debug context: ");
-      if (parts.size() > 1)
-      {
-        return parts[0]; // Return the part before the gRPC context
-      }
-    }
-    return value; // Return the original value if no gRPC context is found
-  }
-
-  static string build_error_message(const string &location, const string &descriptor, const string &msg, const string &status)
-  {
-    // Handle other descriptor types if needed
-    string descriptor_joiner = "/";
-    if (location.back() == '/')
-    {
-      descriptor_joiner = "";
-    }
-
-    string extra_msg = "";
-    if (!msg.empty())
-    {
-      extra_msg = msg + " ";
-    }
-
-    return "Airport @ " + location + descriptor_joiner + descriptor + ": " + extra_msg + status;
-  }
-
-  static string descriptor_to_string(const flight::FlightDescriptor &descriptor)
-  {
-    if (descriptor.type == flight::FlightDescriptor::DescriptorType::PATH)
-    {
-      return joinWithSlash(descriptor.path);
-    }
-    else if (descriptor.type == flight::FlightDescriptor::DescriptorType::CMD)
-    {
-      return "'" + descriptor.cmd + "'";
-    }
-    else
-    {
-      throw NotImplementedException("Unsupported Arrow Flight descriptor type");
-    }
   }
 
   string AirportFlightException::produce_flight_error_message(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg)
