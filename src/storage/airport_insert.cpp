@@ -308,29 +308,12 @@ namespace duckdb
     // Since we wrote a batch I'd like to read the data returned if we are returning chunks.
     if (gstate.return_chunk)
     {
-      ustate.returning_data_chunk.Reset();
+      AirportExchangeReadDataToChunk(
+          gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(),
+          gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>(),
+          ustate.returning_data_chunk);
 
-      {
-        auto &data = gstate.scan_table_function_input->bind_data->CastNoConst<AirportTakeFlightBindData>(); // FIXME
-        auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-        // auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-        state.Reset();
-        state.chunk = state.stream()->GetNextChunk();
-
-        auto output_size =
-            MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-        state.lines_read += output_size;
-        ustate.returning_data_chunk.SetCardinality(state.chunk->arrow_array.length);
-
-        ArrowTableFunction::ArrowToDuckDB(state,
-                                          data.arrow_table.GetColumns(),
-                                          ustate.returning_data_chunk,
-                                          state.lines_read - output_size,
-                                          false);
-        ustate.returning_data_chunk.Verify();
-        gstate.return_collection.Append(ustate.returning_data_chunk);
-      }
+      gstate.return_collection.Append(ustate.returning_data_chunk);
     }
 
     return SinkResultType::NEED_MORE_INPUT;

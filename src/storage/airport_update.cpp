@@ -248,49 +248,25 @@ namespace duckdb
     // Since we wrote a batch I'd like to read the data returned if we are returning chunks.
     if (gstate.return_chunk)
     {
-      // printf("Returning data\n");
-      lstate.read_from_flight_chunk.Reset();
+      AirportExchangeReadDataToChunk(
+          gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(),
+          gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>(),
+          lstate.read_from_flight_chunk);
 
+      DataChunk &mock_chunk = lstate.table_mock_chunk;
+
+      mock_chunk.SetCardinality(lstate.read_from_flight_chunk.size());
+      for (idx_t i = 0; i < columns.size(); i++)
       {
-        auto &data = gstate.scan_table_function_input->bind_data->CastNoConst<AirportExchangeTakeFlightBindData>();
-        auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-        //        auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-        state.Reset();
-        state.chunk = state.stream()->GetNextChunk();
-
-        auto output_size =
-            MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-        state.lines_read += output_size;
-
-        // printf("Returning chunk is:\n%s\n", lstate.read_from_flight_chunk.ToString().c_str());
-
-        lstate.read_from_flight_chunk.SetCardinality(state.chunk->arrow_array.length);
-
-        ArrowTableFunction::ArrowToDuckDB(state,
-                                          // The arrow arrow_table has the columns
-                                          // which are the types of the update.
-                                          data.arrow_table.GetColumns(),
-                                          lstate.read_from_flight_chunk,
-                                          state.lines_read - output_size,
-                                          false);
-        lstate.read_from_flight_chunk.Verify();
-        DataChunk &mock_chunk = lstate.table_mock_chunk;
-
-        mock_chunk.SetCardinality(state.chunk->arrow_array.length);
-        for (idx_t i = 0; i < columns.size(); i++)
-        {
-          mock_chunk.data[columns[i].index].Reference(lstate.read_from_flight_chunk.data[i]);
-        }
-
-        lstate.table_mock_chunk.Verify();
-
-        // printf("Read chunk to return:%s\n", mock_chunk.ToString().c_str());
-
-        // Now the problem is the rowid column is being returned from the remote server
-
-        gstate.return_collection.Append(mock_chunk);
+        mock_chunk.data[columns[i].index].Reference(lstate.read_from_flight_chunk.data[i]);
       }
+
+      lstate.table_mock_chunk.Verify();
+
+      // printf("Read chunk to return:%s\n", mock_chunk.ToString().c_str());
+
+      // Now the problem is the rowid column is being returned from the remote server
+      gstate.return_collection.Append(mock_chunk);
     }
 
     return SinkResultType::NEED_MORE_INPUT;
