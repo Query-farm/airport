@@ -64,13 +64,13 @@ namespace duckdb
         AirportTableEntry &table,
         const vector<LogicalType> &return_types,
         bool return_chunk)
-        : table(table), insert_count(0),
+        : table(table), changed_count(0),
           return_collection(context, return_types), return_chunk(return_chunk)
     {
     }
 
     AirportTableEntry &table;
-    idx_t insert_count;
+    idx_t changed_count;
     mutex insert_lock;
 
     ColumnDataCollection return_collection;
@@ -356,25 +356,10 @@ namespace duckdb
         gstate.writer->DoneWriting(),
         gstate.table.table_data, "");
 
+    auto changed_count = gstate.ReadChangedCount(gstate.table.table_data->server_location());
+    if (changed_count)
     {
-      auto &bind_data = gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(); // FIXME
-      auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-      // auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-      state.Reset();
-
-      state.chunk = state.stream()->GetNextChunk();
-      auto &last_app_metadata = bind_data.last_app_metadata;
-
-      if (last_app_metadata)
-      {
-        AIRPORT_MSGPACK_UNPACK(
-            AirportInsertFinalMetadata, final_metadata,
-            (*last_app_metadata),
-            gstate.table.table_data->server_location(),
-            "Failed to parse msgpack encoded object for final insert metadata.");
-        gstate.insert_count = final_metadata.total_inserted;
-      }
+      gstate.changed_count = *changed_count;
     }
 
     return SinkFinalizeType::READY;
@@ -415,7 +400,7 @@ namespace duckdb
     if (!return_chunk)
     {
       chunk.SetCardinality(1);
-      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.insert_count)));
+      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.changed_count)));
       return SourceResultType::FINISHED;
     }
 

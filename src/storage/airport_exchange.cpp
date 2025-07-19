@@ -231,7 +231,7 @@ namespace duckdb
     scan_local_state->column_ids = fake_init_input.column_ids;
     scan_local_state->filters = fake_init_input.filters.get();
 
-    global_state->scan_local_state = std::move(scan_local_state);
+    global_state->local_state = std::move(scan_local_state);
 
     // Create a parameter is the commonly passed to the other functions.
     global_state->scan_bind_data = std::move(scan_bind_data);
@@ -239,7 +239,8 @@ namespace duckdb
 
     global_state->scan_table_function_input = make_uniq<TableFunctionInput>(
         global_state->scan_bind_data.get(),
-        global_state->scan_local_state.get(),
+        global_state->local_state.get(),
         global_state->scan_global_state.get());
   }
+
 }

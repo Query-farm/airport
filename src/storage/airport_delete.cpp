@@ -81,13 +81,13 @@ namespace duckdb
         ClientContext &context,
         AirportTableEntry &table,
         const vector<LogicalType> &return_types,
-        bool return_chunk) : deleted_count(0), return_chunk(return_chunk), table(table),
+        bool return_chunk) : changed_count(0), return_chunk(return_chunk), table(table),
                              return_collection(context, return_types)
     {
     }
 
     mutex delete_lock;
-    idx_t deleted_count;
+    idx_t changed_count;
 
     // Is there any data requested to be returned.
     bool return_chunk;
@@ -230,30 +230,10 @@ namespace duckdb
         gstate.writer->DoneWriting(),
         gstate.table.table_data, "");
 
-    // There should be a metadata message in the reader stream
-    // but the problem is the current interface just reads data
-    // chunks, and drops the metadata silently.
-    //
-
+    auto changed_count = gstate.ReadChangedCount(gstate.table.table_data->server_location());
+    if (changed_count)
     {
-      auto &bind_data = gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(); // FIXME
-      auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-      // auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-      state.Reset();
-
-      state.chunk = state.stream()->GetNextChunk();
-
-      auto &last_app_metadata = bind_data.last_app_metadata;
-
-      if (last_app_metadata)
-      {
-        AIRPORT_MSGPACK_UNPACK(AirportDeleteFinalMetadata, final_metadata,
-                               (*last_app_metadata),
-                               gstate.table.table_data->server_location(),
-                               "Failed to parse msgpack encoded object for final delete metadata.");
-        gstate.deleted_count = final_metadata.total_deleted;
-      }
+      gstate.changed_count = *changed_count;
     }
 
     return SinkFinalizeType::READY;
@@ -294,7 +274,7 @@ namespace duckdb
     if (!return_chunk)
     {
       chunk.SetCardinality(1);
-      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.deleted_count)));
+      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.changed_count)));
       return SourceResultType::FINISHED;
     }
 
