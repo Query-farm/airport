@@ -248,10 +248,7 @@ namespace duckdb
     // Since we wrote a batch I'd like to read the data returned if we are returning chunks.
     if (gstate.return_chunk)
     {
-      AirportExchangeReadDataToChunk(
-          gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(),
-          gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>(),
-          lstate.read_from_flight_chunk);
+      gstate.ReadDataIntoChunk(lstate.read_from_flight_chunk);
 
       DataChunk &mock_chunk = lstate.table_mock_chunk;
 
