@@ -189,12 +189,6 @@ namespace duckdb
     return SinkResultType::NEED_MORE_INPUT;
   }
 
-  struct AirportDeleteFinalMetadata
-  {
-    uint64_t total_deleted;
-    MSGPACK_DEFINE_MAP(total_deleted)
-  };
-
   //===--------------------------------------------------------------------===//
   // Finalize
   //===--------------------------------------------------------------------===//

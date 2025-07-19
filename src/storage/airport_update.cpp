@@ -272,12 +272,6 @@ namespace duckdb
     return SinkResultType::NEED_MORE_INPUT;
   }
 
-  struct AirportUpdateFinalMetadata
-  {
-    uint64_t total_updated;
-    MSGPACK_DEFINE_MAP(total_updated)
-  };
-
   //===--------------------------------------------------------------------===//
   // Finalize
   //===--------------------------------------------------------------------===//
