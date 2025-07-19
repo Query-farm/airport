@@ -58,7 +58,7 @@
 namespace duckdb
 {
 
-  AirportDelete::AirportDelete(LogicalOperator &op, TableCatalogEntry &table, idx_t rowid_index, bool return_chunk)
+  AirportDelete::AirportDelete(LogicalOperator &op, TableCatalogEntry &table, idx_t rowid_index, const bool return_chunk)
       : PhysicalOperator(PhysicalOperatorType::EXTENSION, op.types, 1), table(table), rowid_index(rowid_index), return_chunk(return_chunk)
   {
   }

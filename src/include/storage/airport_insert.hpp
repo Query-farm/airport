@@ -23,6 +23,7 @@ namespace duckdb
     //! CREATE TABLE AS
     AirportInsert(LogicalOperator &op, SchemaCatalogEntry &schema, unique_ptr<BoundCreateTableInfo> info, idx_t estimated_cardinality);
 
+  private:
     //! The table to insert into
     optional_ptr<TableCatalogEntry> insert_table;
     // optional_ptr<TableCatalogEntry> table;
@@ -34,15 +35,19 @@ namespace duckdb
     optional_ptr<SchemaCatalogEntry> schema;
     //! Create table info, in case of CREATE TABLE AS
     unique_ptr<BoundCreateTableInfo> info;
+
+  public:
     //! column_index_map
     physical_index_vector_t<idx_t> column_index_map;
 
-    bool return_chunk;
+  public:
+    const bool return_chunk;
 
+  private:
     //! The default expressions of the columns for which no value is provided
-    vector<unique_ptr<Expression>> bound_defaults;
+    const vector<unique_ptr<Expression>> bound_defaults;
     //! The bound constraints for the table
-    vector<unique_ptr<BoundConstraint>> bound_constraints;
+    const vector<unique_ptr<BoundConstraint>> bound_constraints;
 
     // For now always just throw errors.
     OnConflictAction action_type = OnConflictAction::THROW;
