@@ -12,64 +12,67 @@
 
 namespace duckdb
 {
-  static void MarkAirportTakeFlightAsSkipProducing(unique_ptr<LogicalOperator> &op)
+  namespace
   {
-    auto markAirportTakeFlightSkipResults = [](LogicalGet &get)
+    static void MarkAirportTakeFlightAsSkipProducing(unique_ptr<LogicalOperator> &op)
     {
-      if (get.function.name == "airport_take_flight")
+      auto markAirportTakeFlightSkipResults = [](LogicalGet &get)
       {
-        auto &bind_data = get.bind_data->Cast<AirportTakeFlightBindData>();
-        bind_data.skip_producing_result_for_update_or_delete = true;
-      }
-    };
+        if (get.function.name == "airport_take_flight")
+        {
+          auto &bind_data = get.bind_data->Cast<AirportTakeFlightBindData>();
+          bind_data.skip_producing_result_for_update_or_delete = true;
+        }
+      };
 
-    reference<LogicalOperator> child = *op->children[0];
-    if (child.get().type == LogicalOperatorType::LOGICAL_GET)
-    {
-      markAirportTakeFlightSkipResults(child.get().Cast<LogicalGet>());
-    }
-    else if (child.get().type == LogicalOperatorType::LOGICAL_FILTER ||
-             child.get().type == LogicalOperatorType::LOGICAL_PROJECTION)
-    {
-      for (auto &child_node : op->children)
+      reference<LogicalOperator> child = *op->children[0];
+      if (child.get().type == LogicalOperatorType::LOGICAL_GET)
       {
-        MarkAirportTakeFlightAsSkipProducing(child_node);
+        markAirportTakeFlightSkipResults(child.get().Cast<LogicalGet>());
+      }
+      else if (child.get().type == LogicalOperatorType::LOGICAL_FILTER ||
+               child.get().type == LogicalOperatorType::LOGICAL_PROJECTION)
+      {
+        for (auto &child_node : op->children)
+        {
+          MarkAirportTakeFlightAsSkipProducing(child_node);
+        }
+      }
+      else
+      {
+        throw NotImplementedException("Unsupported child type for LogicalUpdate type is" + LogicalOperatorToString(child.get().type));
       }
     }
-    else
+
+    void OptimizeAirportUpdate(unique_ptr<LogicalOperator> &op)
     {
-      throw NotImplementedException("Unsupported child type for LogicalUpdate type is" + LogicalOperatorToString(child.get().type));
+      if (op->type != LogicalOperatorType::LOGICAL_UPDATE)
+        return;
+
+      auto &update = op->Cast<LogicalUpdate>();
+      auto &airport_table = update.table.Cast<AirportTableEntry>();
+
+      // If the table produced rowids we cannot optimize it.
+      if (airport_table.GetRowIdType() != LogicalType::SQLNULL)
+        return;
+
+      MarkAirportTakeFlightAsSkipProducing(op);
     }
-  }
 
-  void OptimizeAirportUpdate(unique_ptr<LogicalOperator> &op)
-  {
-    if (op->type != LogicalOperatorType::LOGICAL_UPDATE)
-      return;
+    void OptimizeAirportDelete(unique_ptr<LogicalOperator> &op)
+    {
+      if (op->type != LogicalOperatorType::LOGICAL_DELETE)
+        return;
 
-    auto &update = op->Cast<LogicalUpdate>();
-    auto &airport_table = update.table.Cast<AirportTableEntry>();
+      auto &del = op->Cast<LogicalDelete>();
+      auto &airport_table = del.table.Cast<AirportTableEntry>();
 
-    // If the table produced rowids we cannot optimize it.
-    if (airport_table.GetRowIdType() != LogicalType::SQLNULL)
-      return;
+      // If the table produced rowids we cannot optimize it.
+      if (airport_table.GetRowIdType() != LogicalType::SQLNULL)
+        return;
 
-    MarkAirportTakeFlightAsSkipProducing(op);
-  }
-
-  void OptimizeAirportDelete(unique_ptr<LogicalOperator> &op)
-  {
-    if (op->type != LogicalOperatorType::LOGICAL_DELETE)
-      return;
-
-    auto &del = op->Cast<LogicalDelete>();
-    auto &airport_table = del.table.Cast<AirportTableEntry>();
-
-    // If the table produced rowids we cannot optimize it.
-    if (airport_table.GetRowIdType() != LogicalType::SQLNULL)
-      return;
-
-    MarkAirportTakeFlightAsSkipProducing(op);
+      MarkAirportTakeFlightAsSkipProducing(op);
+    }
   }
 
   void AirportOptimizer::Optimize(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan)

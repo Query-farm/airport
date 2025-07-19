@@ -606,102 +606,105 @@ namespace duckdb
   //   return compressed_str;
   // }
 
-  struct AirportEndpointParameters
+  namespace
   {
-    std::string json_filters;
-    std::vector<idx_t> column_ids;
-
-    // The parameters to the table function, which should
-    // be included in the opaque ticket data returned
-    // for each endpoint.
-    std::string table_function_parameters;
-    std::string table_function_input_schema;
-
-    std::string at_unit;
-    std::string at_value;
-
-    MSGPACK_DEFINE_MAP(json_filters, column_ids, table_function_parameters, table_function_input_schema, at_unit, at_value)
-  };
-
-  // static string BuildCompressedTicketMetadata(const string &json_filters, const vector<idx_t> &column_ids, uint32_t *uncompressed_length, const string &location, const flight::FlightDescriptor &descriptor)
-  // {
-  //   AirportTicketMetadataParameters params;
-  //   params.json_filters = json_filters;
-  //   params.column_ids = column_ids;
-
-  //   std::stringstream packed_buffer;
-  //   msgpack::pack(packed_buffer, params);
-
-  //   auto metadata_doc_string = packed_buffer.str();
-  //   *uncompressed_length = metadata_doc_string.size();
-  //   auto compressed_metadata = CompressString(metadata_doc_string, location, descriptor);
-
-  //   return compressed_metadata;
-  // }
-
-  struct AirportGetFlightEndpointsRequest
-  {
-    std::string descriptor;
-    AirportEndpointParameters parameters;
-
-    MSGPACK_DEFINE_MAP(descriptor, parameters)
-  };
-
-  static vector<flight::FlightEndpoint> AirportGetFlightEndpoints(
-      const AirportTakeFlightParameters &take_flight_params,
-      const string &trace_id,
-      const flight::FlightDescriptor &descriptor,
-      const std::shared_ptr<flight::FlightClient> &flight_client,
-      const std::string &json_filters,
-      const vector<idx_t> &column_ids,
-      const std::string &table_function_parameters,
-      const std::string &table_function_input_schema)
-  {
-    vector<flight::FlightEndpoint> endpoints;
-    arrow::flight::FlightCallOptions call_options;
-    auto &server_location = take_flight_params.server_location();
-
-    airport_add_normal_headers(call_options, take_flight_params, trace_id,
-                               descriptor);
-
-    AirportGetFlightEndpointsRequest endpoints_request;
-
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(
-        endpoints_request.descriptor,
-        descriptor.SerializeToString(),
-        server_location,
-        "endpoints serialize flight descriptor");
-
-    endpoints_request.parameters.json_filters = json_filters;
-    endpoints_request.parameters.column_ids = column_ids;
-    endpoints_request.parameters.table_function_parameters = table_function_parameters;
-    endpoints_request.parameters.table_function_input_schema = table_function_input_schema;
-    endpoints_request.parameters.at_unit = take_flight_params.at_unit();
-    endpoints_request.parameters.at_value = take_flight_params.at_value();
-
-    AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "endpoints", endpoints_request);
-
-    auto serialized_endpoint_info_buffer = AirportCallAction(flight_client, call_options, action, server_location);
-
-    std::string_view serialized_endpoint_info(reinterpret_cast<const char *>(serialized_endpoint_info_buffer->body->data()), serialized_endpoint_info_buffer->body->size());
-
-    AIRPORT_MSGPACK_UNPACK(std::vector<std::string>,
-                           serialized_endpoints,
-                           serialized_endpoint_info,
-                           server_location,
-                           "File to parse msgpack encoded endpoints");
-
-    endpoints.reserve(serialized_endpoints.size());
-
-    for (const auto &endpoint : serialized_endpoints)
+    struct AirportEndpointParameters
     {
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto deserialized_endpoint,
-                                       arrow::flight::FlightEndpoint::Deserialize(endpoint),
-                                       server_location,
-                                       "deserialize flight endpoint");
-      endpoints.push_back(std::move(deserialized_endpoint));
+      std::string json_filters;
+      std::vector<idx_t> column_ids;
+
+      // The parameters to the table function, which should
+      // be included in the opaque ticket data returned
+      // for each endpoint.
+      std::string table_function_parameters;
+      std::string table_function_input_schema;
+
+      std::string at_unit;
+      std::string at_value;
+
+      MSGPACK_DEFINE_MAP(json_filters, column_ids, table_function_parameters, table_function_input_schema, at_unit, at_value)
+    };
+
+    // static string BuildCompressedTicketMetadata(const string &json_filters, const vector<idx_t> &column_ids, uint32_t *uncompressed_length, const string &location, const flight::FlightDescriptor &descriptor)
+    // {
+    //   AirportTicketMetadataParameters params;
+    //   params.json_filters = json_filters;
+    //   params.column_ids = column_ids;
+
+    //   std::stringstream packed_buffer;
+    //   msgpack::pack(packed_buffer, params);
+
+    //   auto metadata_doc_string = packed_buffer.str();
+    //   *uncompressed_length = metadata_doc_string.size();
+    //   auto compressed_metadata = CompressString(metadata_doc_string, location, descriptor);
+
+    //   return compressed_metadata;
+    // }
+
+    struct AirportGetFlightEndpointsRequest
+    {
+      std::string descriptor;
+      AirportEndpointParameters parameters;
+
+      MSGPACK_DEFINE_MAP(descriptor, parameters)
+    };
+
+    vector<flight::FlightEndpoint> AirportGetFlightEndpoints(
+        const AirportTakeFlightParameters &take_flight_params,
+        const string &trace_id,
+        const flight::FlightDescriptor &descriptor,
+        const std::shared_ptr<flight::FlightClient> &flight_client,
+        const std::string &json_filters,
+        const vector<idx_t> &column_ids,
+        const std::string &table_function_parameters,
+        const std::string &table_function_input_schema)
+    {
+      vector<flight::FlightEndpoint> endpoints;
+      arrow::flight::FlightCallOptions call_options;
+      auto &server_location = take_flight_params.server_location();
+
+      airport_add_normal_headers(call_options, take_flight_params, trace_id,
+                                 descriptor);
+
+      AirportGetFlightEndpointsRequest endpoints_request;
+
+      AIRPORT_ASSIGN_OR_RAISE_LOCATION(
+          endpoints_request.descriptor,
+          descriptor.SerializeToString(),
+          server_location,
+          "endpoints serialize flight descriptor");
+
+      endpoints_request.parameters.json_filters = json_filters;
+      endpoints_request.parameters.column_ids = column_ids;
+      endpoints_request.parameters.table_function_parameters = table_function_parameters;
+      endpoints_request.parameters.table_function_input_schema = table_function_input_schema;
+      endpoints_request.parameters.at_unit = take_flight_params.at_unit();
+      endpoints_request.parameters.at_value = take_flight_params.at_value();
+
+      AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(action, "endpoints", endpoints_request);
+
+      auto serialized_endpoint_info_buffer = AirportCallAction(flight_client, call_options, action, server_location);
+
+      std::string_view serialized_endpoint_info(reinterpret_cast<const char *>(serialized_endpoint_info_buffer->body->data()), serialized_endpoint_info_buffer->body->size());
+
+      AIRPORT_MSGPACK_UNPACK(std::vector<std::string>,
+                             serialized_endpoints,
+                             serialized_endpoint_info,
+                             server_location,
+                             "File to parse msgpack encoded endpoints");
+
+      endpoints.reserve(serialized_endpoints.size());
+
+      for (const auto &endpoint : serialized_endpoints)
+      {
+        AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto deserialized_endpoint,
+                                         arrow::flight::FlightEndpoint::Deserialize(endpoint),
+                                         server_location,
+                                         "deserialize flight endpoint");
+        endpoints.push_back(std::move(deserialized_endpoint));
+      }
+      return endpoints;
     }
-    return endpoints;
   }
 
   unique_ptr<GlobalTableFunctionState> AirportArrowScanInitGlobal(ClientContext &context,

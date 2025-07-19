@@ -36,68 +36,71 @@ namespace duckdb
   //  static constexpr idx_t FILE_FLAGS_FILE_CREATE = idx_t(1 << 3);
   static constexpr idx_t FILE_FLAGS_FILE_CREATE_NEW = idx_t(1 << 4);
 
-  static void writeToTempFile(FileSystem &fs, const string &tempFilename, const std::string_view &data)
+  namespace
   {
-    auto handle = fs.OpenFile(tempFilename, FILE_FLAGS_WRITE | FILE_FLAGS_FILE_CREATE_NEW);
-    if (!handle)
+    void writeToTempFile(FileSystem &fs, const string &tempFilename, const std::string_view &data)
     {
-      throw IOException("Airport: Failed to open file for writing: %s", tempFilename.c_str());
+      auto handle = fs.OpenFile(tempFilename, FILE_FLAGS_WRITE | FILE_FLAGS_FILE_CREATE_NEW);
+      if (!handle)
+      {
+        throw IOException("Airport: Failed to open file for writing: %s", tempFilename.c_str());
+      }
+
+      handle->Write((void *)data.data(), data.size());
+      handle->Sync();
+      handle->Close();
     }
 
-    handle->Write((void *)data.data(), data.size());
-    handle->Sync();
-    handle->Close();
-  }
-
-  static string decompressZStandard(const string &source, const int decompressed_size, const string &location)
-  {
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(
-        auto codec,
-        arrow::util::Codec::Create(arrow::Compression::ZSTD),
-        location, "");
-
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto decompressed_data,
-                                     ::arrow::AllocateBuffer(decompressed_size),
-                                     location,
-                                     "");
-
-    auto decompress_result = codec->Decompress(
-        source.size(),
-        reinterpret_cast<const uint8_t *>(source.data()),
-        decompressed_size,
-        decompressed_data->mutable_data());
-
-    AIRPORT_ARROW_ASSERT_OK_LOCATION(decompress_result, location, "Failed to decompress the schema data");
-
-    return string(reinterpret_cast<const char *>(decompressed_data->data()), decompressed_size);
-  }
-
-  static string generateTempFilename(FileSystem &fs, const string &dir)
-  {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dis(0, 999999);
-
-    string filename;
-
-    do
+    string decompressZStandard(const string &source, const int decompressed_size, const string &location)
     {
-      filename = fs.JoinPath(dir, "temp_" + std::to_string(dis(gen)) + ".tmp");
-    } while (fs.FileExists(filename));
-    return filename;
-  }
+      AIRPORT_ASSIGN_OR_RAISE_LOCATION(
+          auto codec,
+          arrow::util::Codec::Create(arrow::Compression::ZSTD),
+          location, "");
 
-  static std::string readFromFile(FileSystem &fs, const string &filename)
-  {
-    auto handle = fs.OpenFile(filename, FILE_FLAGS_READ);
-    if (!handle)
-    {
-      return "";
+      AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto decompressed_data,
+                                       ::arrow::AllocateBuffer(decompressed_size),
+                                       location,
+                                       "");
+
+      auto decompress_result = codec->Decompress(
+          source.size(),
+          reinterpret_cast<const uint8_t *>(source.data()),
+          decompressed_size,
+          decompressed_data->mutable_data());
+
+      AIRPORT_ARROW_ASSERT_OK_LOCATION(decompress_result, location, "Failed to decompress the schema data");
+
+      return string(reinterpret_cast<const char *>(decompressed_data->data()), decompressed_size);
     }
-    auto file_size = handle->GetFileSize();
-    string read_buffer = string(file_size, '\0');
-    handle->Read((void *)read_buffer.data(), file_size);
-    return read_buffer;
+
+    string generateTempFilename(FileSystem &fs, const string &dir)
+    {
+      static std::random_device rd;
+      static std::mt19937 gen(rd());
+      static std::uniform_int_distribution<> dis(0, 999999);
+
+      string filename;
+
+      do
+      {
+        filename = fs.JoinPath(dir, "temp_" + std::to_string(dis(gen)) + ".tmp");
+      } while (fs.FileExists(filename));
+      return filename;
+    }
+
+    std::string readFromFile(FileSystem &fs, const string &filename)
+    {
+      auto handle = fs.OpenFile(filename, FILE_FLAGS_READ);
+      if (!handle)
+      {
+        return "";
+      }
+      auto file_size = handle->GetFileSize();
+      string read_buffer = string(file_size, '\0');
+      handle->Read((void *)read_buffer.data(), file_size);
+      return read_buffer;
+    }
   }
 
   vector<string> AirportAPI::GetCatalogs(const string &catalog, AirportAttachParameters credentials)
@@ -126,113 +129,116 @@ namespace duckdb
     return airport_flight_clients_by_location[location];
   }
 
-  static std::string SHA256ForString(const std::string_view &input)
+  namespace
   {
-    EVP_MD_CTX *context = EVP_MD_CTX_new();
-    const EVP_MD *md = EVP_sha256();
-
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int lengthOfHash = 0;
-
-    EVP_DigestInit_ex(context, md, nullptr);
-    EVP_DigestUpdate(context, input.data(), input.size());
-    EVP_DigestFinal_ex(context, hash, &lengthOfHash);
-    EVP_MD_CTX_free(context);
-
-    std::stringstream ss;
-    for (unsigned int i = 0; i < lengthOfHash; ++i)
+    std::string SHA256ForString(const std::string_view &input)
     {
-      ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+      EVP_MD_CTX *context = EVP_MD_CTX_new();
+      const EVP_MD *md = EVP_sha256();
+
+      unsigned char hash[EVP_MAX_MD_SIZE];
+      unsigned int lengthOfHash = 0;
+
+      EVP_DigestInit_ex(context, md, nullptr);
+      EVP_DigestUpdate(context, input.data(), input.size());
+      EVP_DigestFinal_ex(context, hash, &lengthOfHash);
+      EVP_MD_CTX_free(context);
+
+      std::stringstream ss;
+      for (unsigned int i = 0; i < lengthOfHash; ++i)
+      {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+      }
+
+      return ss.str();
     }
 
-    return ss.str();
-  }
-
-  static std::string SHA256ForString(const std::string &input)
-  {
-    EVP_MD_CTX *context = EVP_MD_CTX_new();
-    const EVP_MD *md = EVP_sha256();
-
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int lengthOfHash = 0;
-
-    EVP_DigestInit_ex(context, md, nullptr);
-    EVP_DigestUpdate(context, input.data(), input.size());
-    EVP_DigestFinal_ex(context, hash, &lengthOfHash);
-    EVP_MD_CTX_free(context);
-
-    std::stringstream ss;
-    for (unsigned int i = 0; i < lengthOfHash; ++i)
+    std::string SHA256ForString(const std::string &input)
     {
-      ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+      EVP_MD_CTX *context = EVP_MD_CTX_new();
+      const EVP_MD *md = EVP_sha256();
+
+      unsigned char hash[EVP_MAX_MD_SIZE];
+      unsigned int lengthOfHash = 0;
+
+      EVP_DigestInit_ex(context, md, nullptr);
+      EVP_DigestUpdate(context, input.data(), input.size());
+      EVP_DigestFinal_ex(context, hash, &lengthOfHash);
+      EVP_MD_CTX_free(context);
+
+      std::stringstream ss;
+      for (unsigned int i = 0; i < lengthOfHash; ++i)
+      {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+      }
+
+      return ss.str();
     }
 
-    return ss.str();
-  }
-
-  static std::pair<HTTPStatusCode, std::string> GetRequest(ClientContext &context, const string &url, const string expected_sha256)
-  {
-    HTTPHeaders headers;
-
-    auto &http_util = HTTPUtil::Get(*context.db);
-    unique_ptr<HTTPParams> params;
-    auto target_url = string(url);
-    params = http_util.InitializeParameters(context, target_url);
-
-    GetRequestInfo get_request(target_url,
-                               headers,
-                               *params,
-                               nullptr,
-                               nullptr);
-
-    auto response = http_util.Request(get_request);
-
-    if (response->status != HTTPStatusCode::OK_200 || expected_sha256.empty())
+    std::pair<HTTPStatusCode, std::string> GetRequest(ClientContext &context, const string &url, const string expected_sha256)
     {
-      return std::make_pair(response->status, "");
-    }
+      HTTPHeaders headers;
 
-    // Verify that the SHA256 matches the returned data, don't want a server to
-    // corrupt the data.
-    auto buffer_view = std::string_view(response->body.data(), response->body.size());
-    auto encountered_sha256 = SHA256ForString(buffer_view);
+      auto &http_util = HTTPUtil::Get(*context.db);
+      unique_ptr<HTTPParams> params;
+      auto target_url = string(url);
+      params = http_util.InitializeParameters(context, target_url);
 
-    if (encountered_sha256 != expected_sha256)
-    {
-      throw IOException("Airport: SHA256 mismatch for URL: " + url);
+      GetRequestInfo get_request(target_url,
+                                 headers,
+                                 *params,
+                                 nullptr,
+                                 nullptr);
+
+      auto response = http_util.Request(get_request);
+
+      if (response->status != HTTPStatusCode::OK_200 || expected_sha256.empty())
+      {
+        return std::make_pair(response->status, "");
+      }
+
+      // Verify that the SHA256 matches the returned data, don't want a server to
+      // corrupt the data.
+      auto buffer_view = std::string_view(response->body.data(), response->body.size());
+      auto encountered_sha256 = SHA256ForString(buffer_view);
+
+      if (encountered_sha256 != expected_sha256)
+      {
+        throw IOException("Airport: SHA256 mismatch for URL: " + url);
+      }
+      return std::make_pair(response->status, response->body);
     }
-    return std::make_pair(response->status, response->body);
-  }
 
 #undef CreateDirectory
-  static std::pair<const string, const string> GetCachePath(FileSystem &fs, const string &input, const string &baseDir)
-  {
-    auto cacheDir = fs.JoinPath(baseDir, "airport_cache");
-    if (!fs.DirectoryExists(baseDir))
+    std::pair<const string, const string> GetCachePath(FileSystem &fs, const string &input, const string &baseDir)
     {
-      fs.CreateDirectory(baseDir);
+      auto cacheDir = fs.JoinPath(baseDir, "airport_cache");
+      if (!fs.DirectoryExists(baseDir))
+      {
+        fs.CreateDirectory(baseDir);
+      }
+
+      if (!fs.DirectoryExists(cacheDir))
+      {
+        fs.CreateDirectory(cacheDir);
+      }
+
+      if (input.size() < 6)
+      {
+        throw std::invalid_argument("String is too short to contain the SHA256");
+      }
+
+      auto subDirName = input.substr(0, 3); // First 3 characters for subdirectory
+      auto fileName = input.substr(3);      // Remaining characters for filename
+
+      auto subDir = fs.JoinPath(cacheDir, subDirName);
+      if (!fs.DirectoryExists(subDir))
+      {
+        fs.CreateDirectory(subDir);
+      }
+
+      return std::make_pair(subDir, fs.JoinPath(subDir, fileName));
     }
-
-    if (!fs.DirectoryExists(cacheDir))
-    {
-      fs.CreateDirectory(cacheDir);
-    }
-
-    if (input.size() < 6)
-    {
-      throw std::invalid_argument("String is too short to contain the SHA256");
-    }
-
-    auto subDirName = input.substr(0, 3); // First 3 characters for subdirectory
-    auto fileName = input.substr(3);      // Remaining characters for filename
-
-    auto subDir = fs.JoinPath(cacheDir, subDirName);
-    if (!fs.DirectoryExists(subDir))
-    {
-      fs.CreateDirectory(subDir);
-    }
-
-    return std::make_pair(subDir, fs.JoinPath(subDir, fileName));
   }
 
 #undef MoveFile
@@ -355,144 +361,147 @@ namespace duckdb
     writeToTempFile(*fs, sentinel_paths.second, "1");
   }
 
-  // Function to handle caching
-  static std::pair<HTTPStatusCode, std::string> getCachedRequestData(ClientContext &context,
-                                                                     const AirportSerializedContentsWithSHA256Hash &source,
-                                                                     const string &baseDir)
+  namespace
   {
-    if (source.sha256.empty())
+    // Function to handle caching
+    std::pair<HTTPStatusCode, std::string> getCachedRequestData(ClientContext &context,
+                                                                const AirportSerializedContentsWithSHA256Hash &source,
+                                                                const string &baseDir)
     {
-      // Can't cache anything since we don't know the expected sha256 value.
-      // and the caching is based on the sha256 values.
-      //
-      // So if there was inline content supplied use that and fake that it was
-      // retrieved from a server.
+      if (source.sha256.empty())
+      {
+        // Can't cache anything since we don't know the expected sha256 value.
+        // and the caching is based on the sha256 values.
+        //
+        // So if there was inline content supplied use that and fake that it was
+        // retrieved from a server.
+        if (source.serialized.has_value())
+        {
+          return std::make_pair(HTTPStatusCode::OK_200, source.serialized.value());
+        }
+        else if (source.url.has_value())
+        {
+          return GetRequest(context, source.url.value(), source.sha256);
+        }
+        else
+        {
+          throw IOException("SHA256 is empty and URL is empty");
+        }
+      }
+
+      // If the user supplied an inline serialized value, check if the sha256 matches, if so
+      // use it otherwise fall abck to the url
       if (source.serialized.has_value())
       {
-        return std::make_pair(HTTPStatusCode::OK_200, source.serialized.value());
-      }
-      else if (source.url.has_value())
-      {
-        return GetRequest(context, source.url.value(), source.sha256);
-      }
-      else
-      {
-        throw IOException("SHA256 is empty and URL is empty");
-      }
-    }
-
-    // If the user supplied an inline serialized value, check if the sha256 matches, if so
-    // use it otherwise fall abck to the url
-    if (source.serialized.has_value())
-    {
-      if (SHA256ForString(source.serialized.value()) == source.sha256)
-      {
-        return std::make_pair(HTTPStatusCode::OK_200, source.serialized.value());
-      }
-      if (!source.url.has_value())
-      {
-        throw IOException("SHA256 mismatch for inline serialized data and URL is empty");
-      }
-    }
-
-    auto fs = FileSystem::CreateLocal();
-
-    auto paths = GetCachePath(*fs, source.sha256, baseDir);
-
-    // Check if data is in cache
-    if (fs->FileExists(paths.second))
-    {
-      std::string cachedData = readFromFile(*fs, paths.second);
-      if (!cachedData.empty())
-      {
-        // Verify that the SHA256 matches the returned data, don't allow a corrupted filesystem
-        // to affect things.
-        if (!source.sha256.empty() && SHA256ForString(cachedData) != source.sha256)
+        if (SHA256ForString(source.serialized.value()) == source.sha256)
         {
-          throw IOException("SHA256 mismatch for URL: %s from cached data at %s, check for cache corruption", source.url.value(), paths.second.c_str());
+          return std::make_pair(HTTPStatusCode::OK_200, source.serialized.value());
         }
-        return std::make_pair(HTTPStatusCode::OK_200, cachedData);
+        if (!source.url.has_value())
+        {
+          throw IOException("SHA256 mismatch for inline serialized data and URL is empty");
+        }
       }
-    }
 
-    // I know this doesn't work for zero byte cached responses, its okay.
+      auto fs = FileSystem::CreateLocal();
 
-    // Data not in cache, fetch it
-    auto get_result = GetRequest(context, source.url.value(), source.sha256);
+      auto paths = GetCachePath(*fs, source.sha256, baseDir);
 
-    if (get_result.first != HTTPStatusCode::OK_200)
-    {
+      // Check if data is in cache
+      if (fs->FileExists(paths.second))
+      {
+        std::string cachedData = readFromFile(*fs, paths.second);
+        if (!cachedData.empty())
+        {
+          // Verify that the SHA256 matches the returned data, don't allow a corrupted filesystem
+          // to affect things.
+          if (!source.sha256.empty() && SHA256ForString(cachedData) != source.sha256)
+          {
+            throw IOException("SHA256 mismatch for URL: %s from cached data at %s, check for cache corruption", source.url.value(), paths.second.c_str());
+          }
+          return std::make_pair(HTTPStatusCode::OK_200, cachedData);
+        }
+      }
+
+      // I know this doesn't work for zero byte cached responses, its okay.
+
+      // Data not in cache, fetch it
+      auto get_result = GetRequest(context, source.url.value(), source.sha256);
+
+      if (get_result.first != HTTPStatusCode::OK_200)
+      {
+        return get_result;
+      }
+
+      // Save the fetched data to a temporary file
+      auto tempFilename = generateTempFilename(*fs, paths.first);
+      auto content = std::string_view(get_result.second.data(), get_result.second.size());
+      writeToTempFile(*fs, tempFilename, content);
+
+      // Rename the temporary file to the final filename
+      if (!fs->FileExists(paths.second))
+      {
+        fs->MoveFile(tempFilename, paths.second);
+      }
       return get_result;
     }
 
-    // Save the fetched data to a temporary file
-    auto tempFilename = generateTempFilename(*fs, paths.first);
-    auto content = std::string_view(get_result.second.data(), get_result.second.size());
-    writeToTempFile(*fs, tempFilename, content);
-
-    // Rename the temporary file to the final filename
-    if (!fs->FileExists(paths.second))
+    const AirportSerializedFlightAppMetadata ParseFlightAppMetadata(const string &app_metadata, const string &server_location)
     {
-      fs->MoveFile(tempFilename, paths.second);
-    }
-    return get_result;
-  }
-
-  static const AirportSerializedFlightAppMetadata ParseFlightAppMetadata(const string &app_metadata, const string &server_location)
-  {
-    AIRPORT_MSGPACK_UNPACK(AirportSerializedFlightAppMetadata,
-                           app_metadata_obj,
-                           app_metadata,
-                           server_location,
-                           "Failed to parse Flight app_metadata");
-    return app_metadata_obj;
-  }
-
-  static void handle_flight_app_metadata(const string &app_metadata,
-                                         const string &catalog_name,
-                                         const string &schema_name,
-                                         const string &server_location,
-                                         const flight::FlightDescriptor &descriptor,
-                                         std::shared_ptr<arrow::Schema> schema,
-                                         const unique_ptr<AirportSchemaContents> &contents)
-  {
-    auto parsed_app_metadata = ParseFlightAppMetadata(app_metadata, server_location);
-    if (parsed_app_metadata.catalog != catalog_name)
-    {
-      throw AirportFlightException(server_location, descriptor, string("Flight metadata catalog name does not match expected value expected '" + catalog_name + "' found '" + parsed_app_metadata.catalog + "'"), "");
-    }
-    if (parsed_app_metadata.schema != schema_name)
-    {
-      throw AirportFlightException(server_location, descriptor, string("Flight metadata schema name does not match expected value, expected '" + schema_name + "' found '" + parsed_app_metadata.schema + "'"), "");
+      AIRPORT_MSGPACK_UNPACK(AirportSerializedFlightAppMetadata,
+                             app_metadata_obj,
+                             app_metadata,
+                             server_location,
+                             "Failed to parse Flight app_metadata");
+      return app_metadata_obj;
     }
 
-    if (parsed_app_metadata.type == "table")
+    void handle_flight_app_metadata(const string &app_metadata,
+                                    const string &catalog_name,
+                                    const string &schema_name,
+                                    const string &server_location,
+                                    const flight::FlightDescriptor &descriptor,
+                                    std::shared_ptr<arrow::Schema> schema,
+                                    const unique_ptr<AirportSchemaContents> &contents)
     {
-      contents->tables.emplace_back(AirportAPITable(
-          server_location,
-          descriptor,
-          schema,
-          parsed_app_metadata));
-    }
-    else if (parsed_app_metadata.type == "table_function")
-    {
-      contents->table_functions.emplace_back(AirportAPITableFunction(
-          server_location,
-          descriptor,
-          schema,
-          parsed_app_metadata));
-    }
-    else if (parsed_app_metadata.type == "scalar_function")
-    {
-      contents->scalar_functions.emplace_back(AirportAPIScalarFunction(
-          server_location,
-          descriptor,
-          schema,
-          parsed_app_metadata));
-    }
-    else
-    {
-      throw AirportFlightException(server_location, descriptor, "Unknown object type in app_metadata", parsed_app_metadata.type);
+      auto parsed_app_metadata = ParseFlightAppMetadata(app_metadata, server_location);
+      if (parsed_app_metadata.catalog != catalog_name)
+      {
+        throw AirportFlightException(server_location, descriptor, string("Flight metadata catalog name does not match expected value expected '" + catalog_name + "' found '" + parsed_app_metadata.catalog + "'"), "");
+      }
+      if (parsed_app_metadata.schema != schema_name)
+      {
+        throw AirportFlightException(server_location, descriptor, string("Flight metadata schema name does not match expected value, expected '" + schema_name + "' found '" + parsed_app_metadata.schema + "'"), "");
+      }
+
+      if (parsed_app_metadata.type == "table")
+      {
+        contents->tables.emplace_back(AirportAPITable(
+            server_location,
+            descriptor,
+            schema,
+            parsed_app_metadata));
+      }
+      else if (parsed_app_metadata.type == "table_function")
+      {
+        contents->table_functions.emplace_back(AirportAPITableFunction(
+            server_location,
+            descriptor,
+            schema,
+            parsed_app_metadata));
+      }
+      else if (parsed_app_metadata.type == "scalar_function")
+      {
+        contents->scalar_functions.emplace_back(AirportAPIScalarFunction(
+            server_location,
+            descriptor,
+            schema,
+            parsed_app_metadata));
+      }
+      else
+      {
+        throw AirportFlightException(server_location, descriptor, "Unknown object type in app_metadata", parsed_app_metadata.type);
+      }
     }
   }
 
