@@ -28,14 +28,17 @@
 namespace duckdb
 {
 
-  struct AirportGetFlightColumnStatistics
+  namespace
   {
-    std::string flight_descriptor;
-    std::string column_name;
-    std::string type;
+    struct AirportGetFlightColumnStatistics
+    {
+      std::string flight_descriptor;
+      std::string column_name;
+      std::string type;
 
-    MSGPACK_DEFINE_MAP(flight_descriptor, column_name, type)
-  };
+      MSGPACK_DEFINE_MAP(flight_descriptor, column_name, type)
+    };
+  }
 
   unique_ptr<BaseStatistics> AirportTakeFlightStatistics(ClientContext &context, const FunctionData *bind_data, const column_t column_index)
   {
