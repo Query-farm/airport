@@ -4,6 +4,15 @@
 
 namespace duckdb
 {
+  struct AirportArrowTableSchema
+  {
+  public:
+    void AddColumn(idx_t index, shared_ptr<ArrowType> type, const string &name);
+    const arrow_column_map_t &GetColumns() const;
+
+  private:
+    arrow_column_map_t arrow_convert_data;
+  };
 
   duckdb::unique_ptr<duckdb::ArrowType> AirportGetArrowType(
       duckdb::DBConfig &config,
@@ -12,7 +21,7 @@ namespace duckdb
   void AirportExamineSchema(
       ClientContext &context,
       const ArrowSchemaWrapper &schema_root,
-      ArrowTableType *arrow_table,
+      AirportArrowTableSchema *arrow_table,
       vector<LogicalType> *return_types,
       vector<string> *names,
       vector<string> *duckdb_type_names,
@@ -22,4 +31,5 @@ namespace duckdb
   bool AirportFieldMetadataIsRowId(const char *metadata);
 
   TableFunctionCatalogEntry &AirportGetTableFunction(DatabaseInstance &db, const string &name);
+
 }

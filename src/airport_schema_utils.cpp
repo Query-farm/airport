@@ -39,7 +39,7 @@ namespace duckdb
   void AirportExamineSchema(
       ClientContext &context,
       const ArrowSchemaWrapper &schema_root,
-      ArrowTableType *arrow_table,
+      AirportArrowTableSchema *arrow_table,
       vector<LogicalType> *return_types,
       vector<string> *names,
       vector<string> *duckdb_type_names,
@@ -116,7 +116,7 @@ namespace duckdb
 
       if (arrow_table)
       {
-        arrow_table->AddColumn(column_id, std::move(arrow_type));
+        arrow_table->AddColumn(column_id, std::move(arrow_type), schema.name);
       }
     }
     QueryResult::DeduplicateColumns(*names);
@@ -140,6 +140,17 @@ namespace duckdb
       throw InvalidInputException("Function with name \"%s\" not found, check to see if all necessary extensions are loaded.", name);
     }
     return catalog_entry->Cast<TableFunctionCatalogEntry>();
+  }
+
+  void AirportArrowTableSchema::AddColumn(idx_t index, shared_ptr<ArrowType> type, const string &name)
+  {
+    D_ASSERT(arrow_convert_data.find(index) == arrow_convert_data.end());
+    arrow_convert_data.emplace(std::make_pair(index, std::move(type)));
+  }
+
+  const arrow_column_map_t &AirportArrowTableSchema::GetColumns() const
+  {
+    return arrow_convert_data;
   }
 
 }

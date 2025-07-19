@@ -23,12 +23,39 @@
 #include "duckdb/parser/tableref/table_function_ref.hpp"
 #include "duckdb/catalog/catalog_entry/table_function_catalog_entry.hpp"
 #include "storage/airport_table_entry.hpp"
+#include "airport_schema_utils.hpp"
 namespace flight = arrow::flight;
 
 /// File copied from
 /// https://github.com/duckdb/duckdb-wasm/blob/0ad10e7db4ef4025f5f4120be37addc4ebe29618/lib/include/duckdb/web/arrow_stream_buffer.h
 namespace duckdb
 {
+
+  struct AirportArrowScanFunctionData : public TableFunctionData
+  {
+  public:
+    AirportArrowScanFunctionData(stream_factory_produce_t scanner_producer_p, uintptr_t stream_factory_ptr_p,
+                                 shared_ptr<DependencyItem> dependency = nullptr)
+        : lines_read(0), rows_per_thread(0), stream_factory_ptr(stream_factory_ptr_p),
+          scanner_producer(scanner_producer_p), dependency(std::move(dependency))
+    {
+    }
+
+    vector<LogicalType> all_types;
+    atomic<idx_t> lines_read;
+    ArrowSchemaWrapper schema_root;
+    idx_t rows_per_thread;
+    //! Pointer to the scanner factory
+    uintptr_t stream_factory_ptr;
+    //! Pointer to the scanner factory produce
+    stream_factory_produce_t scanner_producer;
+    //! The (optional) dependency of this function (used in Python for example)
+    shared_ptr<DependencyItem> dependency;
+    //! Arrow table data
+    AirportArrowTableSchema arrow_table;
+    //! Whether projection pushdown is enabled on the scan
+    bool projection_pushdown_enabled = true;
+  };
 
   struct AirportArrowStreamParameters : public ArrowStreamParameters, public AirportLocationDescriptor
   {
@@ -306,7 +333,7 @@ namespace duckdb
     const TableFunctionInitInput input_;
   };
 
-  struct AirportTakeFlightBindData : public ArrowScanFunctionData, public AirportLocationDescriptor
+  struct AirportTakeFlightBindData : public AirportArrowScanFunctionData, public AirportLocationDescriptor
   {
   public:
     AirportTakeFlightBindData(
@@ -319,7 +346,7 @@ namespace duckdb
         const flight::FlightDescriptor &descriptor,
         const AirportTableEntry *table_entry,
         shared_ptr<DependencyItem> dependency = nullptr)
-        : ArrowScanFunctionData(scanner_producer_p, (uintptr_t)this, std::move(dependency)),
+        : AirportArrowScanFunctionData(scanner_producer_p, (uintptr_t)this, std::move(dependency)),
           AirportLocationDescriptor(take_flight_params_p.server_location(), descriptor),
           trace_id_(trace_id), estimated_records_(estimated_records),
           take_flight_params_(take_flight_params_p),

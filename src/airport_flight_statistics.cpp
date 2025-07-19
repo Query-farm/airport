@@ -122,7 +122,7 @@ namespace duckdb
         "ExportSchema");
 
     vector<LogicalType> all_types;
-    ArrowTableType arrow_table;
+    AirportArrowTableSchema arrow_table;
     std::unordered_map<std::string, idx_t> name_indexes;
 
     for (idx_t col_index = 0; col_index < schema_root.arrow_schema.n_children; col_index++)
@@ -132,7 +132,7 @@ namespace duckdb
       auto arrow_type = AirportGetArrowType(config, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
-      arrow_table.AddColumn(col_index, std::move(arrow_type));
+      arrow_table.AddColumn(col_index, std::move(arrow_type), schema_item.name);
       name_indexes[schema_item.name] = col_index;
     }
 

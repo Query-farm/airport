@@ -4,6 +4,7 @@
 #include "duckdb.hpp"
 
 #include "airport_flight_stream.hpp"
+#include "airport_schema_utils.hpp"
 
 namespace duckdb
 {
@@ -85,7 +86,7 @@ namespace duckdb
   };
 
   shared_ptr<ArrowArrayStreamWrapper> AirportProduceArrowScan(
-      const ArrowScanFunctionData &function,
+      const AirportArrowScanFunctionData &function,
       const vector<column_t> &column_ids,
       const TableFilterSet *filters,
       atomic<double> *progress,

@@ -86,7 +86,7 @@ namespace duckdb
     vector<std::string> parameter_names;
     vector<idx_t> named_parameter_indexes;
 
-    ArrowTableType arrow_table;
+    AirportArrowTableSchema arrow_table;
 
     for (int arg_index = 0;; ++arg_index)
     {
@@ -112,7 +112,7 @@ namespace duckdb
       auto arrow_type = AirportGetArrowType(config, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
-      arrow_table.AddColumn(col_index, std::move(arrow_type));
+      arrow_table.AddColumn(col_index, std::move(arrow_type), schema_item.name);
 
       // Skip things that are named parameters.
       if (memcmp(schema_item.name, "arg_", 4) == 0)

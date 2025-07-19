@@ -545,7 +545,7 @@ namespace duckdb
   }
 
   shared_ptr<ArrowArrayStreamWrapper> AirportProduceArrowScan(
-      const ArrowScanFunctionData &function,
+      const AirportArrowScanFunctionData &function,
       const vector<column_t> &column_ids,
       const TableFilterSet *filters,
       atomic<double> *progress,
