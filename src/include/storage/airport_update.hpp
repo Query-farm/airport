@@ -21,6 +21,7 @@ namespace duckdb
 
     //      LogicalOperator &op, TableCatalogEntry &table, vector<PhysicalIndex> columns, bool return_chunk);
 
+  private:
     //! The table to delete from
     TableCatalogEntry &table;
     //! The set of columns to update
@@ -29,9 +30,11 @@ namespace duckdb
     vector<unique_ptr<Expression>> expressions;
     vector<unique_ptr<Expression>> bound_defaults;
     vector<unique_ptr<BoundConstraint>> bound_constraints;
-    bool update_is_del_and_insert;
+
+  public:
+    const bool update_is_del_and_insert;
     //! If the returning statement is present, return the whole chunk
-    bool return_chunk;
+    const bool return_chunk;
 
   public:
     // Source interface
