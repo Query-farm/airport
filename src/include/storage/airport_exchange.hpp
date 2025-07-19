@@ -10,6 +10,15 @@
 namespace duckdb
 {
 
+  namespace
+  {
+    struct AirportChangedFinalMetadata
+    {
+      uint64_t total_changed;
+      MSGPACK_DEFINE_MAP(total_changed)
+    };
+  }
+
   struct AirportExchangeTakeFlightBindData : public AirportTakeFlightBindData
   {
 
@@ -84,10 +93,30 @@ namespace duckdb
     duckdb::unique_ptr<TableFunctionInput> scan_table_function_input;
 
     duckdb::unique_ptr<GlobalTableFunctionState> scan_global_state;
-    duckdb::unique_ptr<LocalTableFunctionState> scan_local_state;
+    duckdb::unique_ptr<LocalTableFunctionState> local_state;
 
     vector<LogicalType> send_types;
     vector<string> send_names;
+
+    std::optional<uint64_t> ReadChangedCount(const string &server_location)
+    {
+      auto &bind_data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
+      auto &local_state = scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
+
+      local_state.Reset();
+      local_state.chunk = local_state.stream()->GetNextChunk();
+
+      auto &last_app_metadata = bind_data.last_app_metadata;
+      if (last_app_metadata)
+      {
+        AIRPORT_MSGPACK_UNPACK(AirportChangedFinalMetadata, final_metadata,
+                               (*last_app_metadata),
+                               server_location,
+                               "Failed to parse msgpack encoded object for final update metadata.");
+        return final_metadata.total_changed;
+      }
+      return std::nullopt;
+    }
   };
 
   void AirportExchangeGetGlobalSinkState(ClientContext &context,
@@ -99,4 +128,5 @@ namespace duckdb
                                          const string exchange_operation,
                                          const vector<string> returning_column_names,
                                          const std::optional<string> transaction_id);
+
 }

@@ -78,7 +78,7 @@ namespace duckdb
         ClientContext &context,
         AirportTableEntry &table,
         const vector<LogicalType> &return_types,
-        bool return_chunk) : table(table), update_count(0),
+        bool return_chunk) : table(table), changed_count(0),
                              return_collection(context, return_types), return_chunk(return_chunk)
 
     {
@@ -92,7 +92,7 @@ namespace duckdb
     AirportTableEntry &table;
 
     mutex update_lock;
-    idx_t update_count;
+    idx_t changed_count;
 
     ColumnDataCollection return_collection;
 
@@ -314,25 +314,10 @@ namespace duckdb
         gstate.writer->DoneWriting(),
         gstate.table.table_data, "");
 
+    auto changed_count = gstate.ReadChangedCount(gstate.table.table_data->server_location());
+    if (changed_count)
     {
-      auto &bind_data = gstate.scan_table_function_input->bind_data->CastNoConst<AirportExchangeTakeFlightBindData>();
-      auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-      //      auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-      state.Reset();
-
-      state.chunk = state.stream()->GetNextChunk();
-
-      auto &last_app_metadata = bind_data.last_app_metadata;
-
-      if (last_app_metadata)
-      {
-        AIRPORT_MSGPACK_UNPACK(AirportUpdateFinalMetadata, final_metadata,
-                               (*last_app_metadata),
-                               gstate.table.table_data->server_location(),
-                               "Failed to parse msgpack encoded object for final update metadata.");
-        gstate.update_count = final_metadata.total_updated;
-      }
+      gstate.changed_count = *changed_count;
     }
 
     return SinkFinalizeType::READY;
@@ -370,7 +355,7 @@ namespace duckdb
     if (!return_chunk)
     {
       chunk.SetCardinality(1);
-      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.update_count)));
+      chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(g.changed_count)));
       return SourceResultType::FINISHED;
     }
 
