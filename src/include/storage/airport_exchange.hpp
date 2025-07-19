@@ -129,4 +129,7 @@ namespace duckdb
                                          const vector<string> returning_column_names,
                                          const std::optional<string> transaction_id);
 
+  void AirportExchangeReadDataToChunk(const AirportTakeFlightBindData &data,
+                                      AirportArrowScanLocalState &state,
+                                      DataChunk &dest);
 }

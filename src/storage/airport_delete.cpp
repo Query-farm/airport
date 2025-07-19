@@ -180,32 +180,11 @@ namespace duckdb
     // Since we wrote a batch I'd like to read the data returned if we are returning chunks.
     if (gstate.return_chunk)
     {
-      ustate.delete_chunk.Reset();
-
-      {
-        auto &data = gstate.scan_table_function_input->bind_data->CastNoConst<AirportTakeFlightBindData>(); // FIXME
-        auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-        // auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
-
-        state.Reset();
-
-        state.chunk = state.stream()->GetNextChunk();
-
-        auto output_size =
-            MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-        state.lines_read += output_size;
-        ustate.delete_chunk.SetCardinality(state.chunk->arrow_array.length);
-
-        // Assume that the data returned is the same size as the table.
-        //        D_ASSERT(data.arrow_table.GetColumns().size() == ustate.delete_chunk.ColumnCount());
-
-        ArrowTableFunction::ArrowToDuckDB(state,
-                                          data.arrow_table.GetColumns(),
-                                          ustate.delete_chunk,
-                                          state.lines_read - output_size, false);
-        ustate.delete_chunk.Verify();
-        gstate.return_collection.Append(ustate.delete_chunk);
-      }
+      AirportExchangeReadDataToChunk(
+          gstate.scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>(),
+          gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>(),
+          ustate.delete_chunk);
+      gstate.return_collection.Append(ustate.delete_chunk);
     }
     return SinkResultType::NEED_MORE_INPUT;
   }
