@@ -105,10 +105,12 @@ namespace duckdb
 
     optional_idx GetCatalogVersion(ClientContext &context) override;
 
-    std::optional<string> GetTransactionIdentifier();
+    void SetLoadedCatalogVersion(AirportGetCatalogVersionResult &result)
+    {
+      loaded_catalog_version = result;
+    }
 
-    // Track what version of the catalog has been loaded.
-    std::optional<AirportGetCatalogVersionResult> loaded_catalog_version;
+    std::optional<string> GetTransactionIdentifier();
 
     const string &internal_name() const
     {
@@ -129,6 +131,9 @@ namespace duckdb
     void DropSchema(ClientContext &context, DropInfo &info) override;
 
   private:
+    // Track what version of the catalog has been loaded.
+    std::optional<AirportGetCatalogVersionResult> loaded_catalog_version = std::nullopt;
+
     std::shared_ptr<arrow::flight::FlightClient> flight_client_;
     AccessMode access_mode_;
     std::shared_ptr<AirportAttachParameters> attach_parameters_;
