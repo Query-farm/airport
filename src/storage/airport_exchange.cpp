@@ -242,25 +242,4 @@ namespace duckdb
         global_state->local_state.get(),
         global_state->scan_global_state.get());
   }
-
-  void AirportExchangeReadDataToChunk(const AirportTakeFlightBindData &data,
-                                      AirportArrowScanLocalState &state,
-                                      DataChunk &dest)
-  {
-    dest.Reset();
-    state.Reset();
-    state.chunk = state.stream()->GetNextChunk();
-
-    auto output_size =
-        MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-    state.lines_read += output_size;
-    dest.SetCardinality(state.chunk->arrow_array.length);
-
-    ArrowTableFunction::ArrowToDuckDB(state,
-                                      data.arrow_table.GetColumns(),
-                                      dest,
-                                      state.lines_read - output_size, false);
-    dest.Verify();
-  }
-
 }

@@ -98,6 +98,27 @@ namespace duckdb
     vector<LogicalType> send_types;
     vector<string> send_names;
 
+    void ReadDataIntoChunk(DataChunk &dest)
+    {
+      auto &data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
+      auto &state = scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
+
+      dest.Reset();
+      state.Reset();
+      state.chunk = state.stream()->GetNextChunk();
+
+      auto output_size =
+          MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
+      state.lines_read += output_size;
+      dest.SetCardinality(state.chunk->arrow_array.length);
+
+      ArrowTableFunction::ArrowToDuckDB(state,
+                                        data.arrow_table.GetColumns(),
+                                        dest,
+                                        state.lines_read - output_size, false);
+      dest.Verify();
+    }
+
     std::optional<uint64_t> ReadChangedCount(const string &server_location)
     {
       auto &bind_data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
@@ -129,7 +150,4 @@ namespace duckdb
                                          const vector<string> returning_column_names,
                                          const std::optional<string> transaction_id);
 
-  void AirportExchangeReadDataToChunk(const AirportTakeFlightBindData &data,
-                                      AirportArrowScanLocalState &state,
-                                      DataChunk &dest);
 }
