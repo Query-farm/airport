@@ -247,11 +247,7 @@ namespace duckdb
                                       AirportArrowScanLocalState &state,
                                       DataChunk &dest)
   {
-    //    auto &data = gstate.scan_table_function_input->bind_data->CastNoConst<AirportTakeFlightBindData>(); // FIXME
-    //    auto &state = gstate.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-    // auto &global_state = gstate.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
     dest.Reset();
-
     state.Reset();
     state.chunk = state.stream()->GetNextChunk();
 
@@ -259,9 +255,6 @@ namespace duckdb
         MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
     state.lines_read += output_size;
     dest.SetCardinality(state.chunk->arrow_array.length);
-
-    // Assume that the data returned is the same size as the table.
-    //        D_ASSERT(data.arrow_table.GetColumns().size() == ustate.delete_chunk.ColumnCount());
 
     ArrowTableFunction::ArrowToDuckDB(state,
                                       data.arrow_table.GetColumns(),
