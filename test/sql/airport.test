@@ -136,6 +136,53 @@ SELECT count(*) FROM employees;
 ----
 4
 
+query TI
+SELECT * FROM employees union SELECT * from employees_2 order by 1, 2
+----
+Alice Johnson	28
+Bob Brown	35
+Jane Smith	25
+John Doe	30
+
+statement ok
+CREATE TABLE employees_all (
+    name STRING,
+    age INT
+);
+
+statement ok
+INSERT INTO employees_all SELECT * FROM employees union SELECT * from employees_2 order by 1, 2
+
+query TI
+SELECT * FROM employees_all union SELECT * from employees_2 order by 1, 2
+----
+Alice Johnson	28
+Bob Brown	35
+Jane Smith	25
+John Doe	30
+
+statement ok
+CREATE TABLE employees_cta_1 as select * from employees_all
+
+query TI
+SELECT * FROM employees_cta_1 order by 1, 2
+----
+Alice Johnson	28
+Bob Brown	35
+Jane Smith	25
+John Doe	30
+
+statement ok
+CREATE TABLE employees_cta_2 as select * from employees union select * from employees_2
+
+query TI
+SELECT * FROM employees_cta_2 order by 1, 2
+----
+Alice Johnson	28
+Bob Brown	35
+Jane Smith	25
+John Doe	30
+
 statement ok
 DROP TABLE employees_2;
 
