@@ -1,0 +1,11 @@
+# name: test/sql/airport-basic.test
+# description: test airport extension
+# group: [airport]
+
+require httpfs
+
+require airport
+
+# Test that the user agent matches what is expected.
+statement ok
+SELECT airport_user_agent()
