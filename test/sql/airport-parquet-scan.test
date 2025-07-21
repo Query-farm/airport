@@ -1,0 +1,35 @@
+# name: test/sql/airport.test
+# description: test airport extension with remote parquet data
+# group: [airport]
+
+require httpfs
+
+require airport
+
+require parquet
+
+# Require test server URL
+require-env AIRPORT_TEST_SERVER
+
+# Create the initial secret, the token value doesn't matter.
+statement ok
+CREATE SECRET airport_testing (
+  type airport,
+  auth_token uuid(),
+  scope '${AIRPORT_TEST_SERVER}');
+
+# Reset the test server
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'reset');
+
+# Create the initial database
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'create_database', 'test1');
+
+statement ok
+ATTACH 'test1' (TYPE  AIRPORT, location '${AIRPORT_TEST_SERVER}');
+
+query I
+SELECT count(*) from test1.remote_data.nyc_yellow_taxi limit 10;
+----
+7052769
