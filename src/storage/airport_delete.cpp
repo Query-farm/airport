@@ -60,7 +60,6 @@ namespace duckdb
 
   AirportDelete::AirportDelete(PhysicalPlan &physical_plan,
                                vector<LogicalType> types,
-                               LogicalOperator &op,
                                TableCatalogEntry &table,
                                vector<unique_ptr<BoundConstraint>> bound_constraints,
                                const idx_t rowid_index,
@@ -300,7 +299,7 @@ namespace duckdb
       return del;
     }
 
-    auto &del = planner.Make<AirportDelete>(op.types, op, op.table, std::move(op.bound_constraints), bound_ref.index, op.estimated_cardinality, op.return_chunk);
+    auto &del = planner.Make<AirportDelete>(op.types, op.table, std::move(op.bound_constraints), bound_ref.index, op.estimated_cardinality, op.return_chunk);
     del.children.push_back(plan);
     return del;
   }

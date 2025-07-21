@@ -9,7 +9,6 @@ namespace duckdb
   public:
     AirportDelete(PhysicalPlan &physical_plan,
                   vector<LogicalType> types,
-                  LogicalOperator &op,
                   TableCatalogEntry &table,
                   vector<unique_ptr<BoundConstraint>> bound_constraints,
                   const idx_t rowid_index,
