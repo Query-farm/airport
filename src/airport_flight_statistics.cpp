@@ -188,6 +188,7 @@ namespace duckdb
     case LogicalTypeId::BLOB:
     {
       auto r = StringStats::CreateEmpty(LogicalType(duck_type.id()));
+
       StringStats::Update(r, stats_chunk.data[name_indexes["min"]].GetValue(0).GetValue<string>());
       StringStats::Update(r, stats_chunk.data[name_indexes["max"]].GetValue(0).GetValue<string>());
       if (stats_chunk.data[name_indexes["has_not_null"]].GetValue(0).GetValue<bool>())
@@ -199,6 +200,25 @@ namespace duckdb
         r.SetHasNull();
       }
       r.SetDistinctCount(stats_chunk.data[name_indexes["distinct_count"]].GetValue(0).GetValue<int64_t>());
+
+      if (name_indexes.find("contains_unicode") != name_indexes.end())
+      {
+        if (stats_chunk.data[name_indexes["contains_unicode"]].GetValue(0).GetValue<bool>())
+        {
+          StringStats::SetContainsUnicode(r);
+        }
+      }
+
+      if (name_indexes.find("max_string_length") != name_indexes.end())
+      {
+        StringStats::SetMaxStringLength(r, stats_chunk.data[name_indexes["max_string_length"]].GetValue(0).GetValue<uint64_t>());
+      }
+      else
+      {
+        // If the max string length is not present, we assume it is unknown.
+        StringStats::ResetMaxStringLength(r);
+      }
+
       return r.ToUnique();
     }
     case LogicalTypeId::UUID:

@@ -11,7 +11,6 @@ namespace duckdb
   public:
     AirportUpdate(
         PhysicalPlan &physical_plan,
-        LogicalOperator &op,
         vector<LogicalType> types,
         TableCatalogEntry &table,
         vector<PhysicalIndex> columns, vector<unique_ptr<Expression>> expressions,
