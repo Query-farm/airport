@@ -58,8 +58,16 @@
 namespace duckdb
 {
 
-  AirportDelete::AirportDelete(PhysicalPlan &physical_plan, LogicalOperator &op, TableCatalogEntry &table, const idx_t rowid_index, const bool return_chunk)
-      : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, op.types, 1), table(table), rowid_index(rowid_index), return_chunk(return_chunk)
+  AirportDelete::AirportDelete(PhysicalPlan &physical_plan,
+                               vector<LogicalType> types,
+                               LogicalOperator &op,
+                               TableCatalogEntry &table,
+                               vector<unique_ptr<BoundConstraint>> bound_constraints,
+                               const idx_t rowid_index,
+                               idx_t estimated_cardinality,
+                               const bool return_chunk)
+      : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, std::move(types), estimated_cardinality), table(table),
+        bound_constraints(std::move(bound_constraints)), rowid_index(rowid_index), return_chunk(return_chunk)
   {
   }
 
@@ -292,7 +300,7 @@ namespace duckdb
       return del;
     }
 
-    auto &del = planner.Make<AirportDelete>(op, op.table, bound_ref.index, op.return_chunk);
+    auto &del = planner.Make<AirportDelete>(op.types, op, op.table, std::move(op.bound_constraints), bound_ref.index, op.estimated_cardinality, op.return_chunk);
     del.children.push_back(plan);
     return del;
   }
