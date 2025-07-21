@@ -30,18 +30,37 @@
 namespace duckdb
 {
 
-  AirportInsert::AirportInsert(PhysicalPlan &physical_plan, LogicalOperator &op, TableCatalogEntry &table,
+  AirportInsert::AirportInsert(PhysicalPlan &physical_plan,
+                               vector<LogicalType> types,
+                               TableCatalogEntry &table,
+                               vector<unique_ptr<BoundConstraint>> bound_constraints_p,
+                               vector<unique_ptr<Expression>> set_expressions,
+                               vector<PhysicalIndex> set_columns,
+                               vector<LogicalType> set_types,
                                physical_index_vector_t<idx_t> column_index_map_p,
+                               idx_t estimated_cardinality,
                                bool return_chunk,
-                               vector<unique_ptr<Expression>> bound_defaults,
-                               vector<unique_ptr<BoundConstraint>> bound_constraints_p)
-      : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, op.types, 1), insert_table(&table),
+                               OnConflictAction action_type,
+                               unique_ptr<Expression> on_conflict_condition_p,
+                               unique_ptr<Expression> do_update_condition_p,
+                               unordered_set<column_t> conflict_target_p,
+                               vector<column_t> columns_to_fetch,
+                               vector<unique_ptr<Expression>> bound_defaults)
+      : PhysicalOperator(physical_plan, PhysicalOperatorType::EXTENSION, std::move(types), estimated_cardinality),
+        insert_table(&table),
         insert_types(table.GetTypes()),
         schema(nullptr),
         column_index_map(std::move(column_index_map_p)),
         return_chunk(return_chunk),
         bound_defaults(std::move(bound_defaults)),
-        bound_constraints(std::move(bound_constraints_p))
+        bound_constraints(std::move(bound_constraints_p)),
+        set_expressions(std::move(set_expressions)),
+        set_columns(std::move(set_columns)),
+        action_type(action_type),
+        set_types(std::move(set_types)),
+        on_conflict_condition(std::move(on_conflict_condition_p)),
+        do_update_condition(std::move(do_update_condition_p)),
+        conflict_target(std::move(conflict_target_p))
   {
   }
 
@@ -411,12 +430,21 @@ namespace duckdb
     //    plan = AddCastToAirportTypes(context, std::move(plan));
 
     auto &insert = planner.Make<AirportInsert>(
-        op,
+        op.types,
         op.table,
+        std::move(op.bound_constraints),
+        std::move(op.expressions),
+        std::move(op.set_columns),
+        std::move(op.set_types),
         op.column_index_map,
+        op.estimated_cardinality,
         op.return_chunk,
-        std::move(op.bound_defaults),
-        std::move(op.bound_constraints));
+        op.action_type,
+        std::move(op.on_conflict_condition),
+        std::move(op.do_update_condition),
+        std::move(op.on_conflict_filter),
+        std::move(op.columns_to_fetch),
+        std::move(op.bound_defaults));
 
     if (plan)
     {
@@ -434,5 +462,4 @@ namespace duckdb
   //   insert->children.push_back(std::move(plan));
   //   return std::move(insert);
   // }
-
 }

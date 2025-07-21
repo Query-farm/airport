@@ -14,12 +14,21 @@ namespace duckdb
   public:
     //! INSERT INTO
     AirportInsert(PhysicalPlan &physical_plan,
-                  LogicalOperator &op,
+                  vector<LogicalType> types,
                   TableCatalogEntry &table,
+                  vector<unique_ptr<BoundConstraint>> bound_constraints,
+                  vector<unique_ptr<Expression>> set_expressions,
+                  vector<PhysicalIndex> set_columns,
+                  vector<LogicalType> set_types,
                   physical_index_vector_t<idx_t> column_index_map,
+                  idx_t estimated_cardinality,
                   bool return_chunk,
-                  vector<unique_ptr<Expression>> bound_defaults,
-                  vector<unique_ptr<BoundConstraint>> bound_constraints);
+                  OnConflictAction action_type,
+                  unique_ptr<Expression> on_conflict_condition,
+                  unique_ptr<Expression> do_update_condition,
+                  unordered_set<column_t> on_conflict_filter,
+                  vector<column_t> columns_to_fetch,
+                  vector<unique_ptr<Expression>> bound_defaults);
 
     //! CREATE TABLE AS
     AirportInsert(PhysicalPlan &physical_plan,
@@ -51,8 +60,23 @@ namespace duckdb
     //! The bound constraints for the table
     const vector<unique_ptr<BoundConstraint>> bound_constraints;
 
+    // The DO UPDATE set expressions, if 'action_type' is UPDATE
+    vector<unique_ptr<Expression>> set_expressions;
+    // Which columns are targeted by the set expressions
+    vector<PhysicalIndex> set_columns;
+
     // For now always just throw errors.
     OnConflictAction action_type = OnConflictAction::THROW;
+
+    // The types of the columns targeted by a SET expression
+    vector<LogicalType> set_types;
+
+    // Condition for the ON CONFLICT clause
+    unique_ptr<Expression> on_conflict_condition;
+    // Condition for the DO UPDATE clause
+    unique_ptr<Expression> do_update_condition;
+    // The column ids to apply the ON CONFLICT on
+    unordered_set<column_t> conflict_target;
 
   public:
     // Source interface

@@ -19,8 +19,6 @@ namespace duckdb
         idx_t estimated_cardinality, bool return_chunk,
         bool update_is_del_and_insert);
 
-    //      LogicalOperator &op, TableCatalogEntry &table, vector<PhysicalIndex> columns, bool return_chunk);
-
   private:
     //! The table to delete from
     TableCatalogEntry &table;
