@@ -162,6 +162,12 @@ Jane Smith	25
 John Doe	30
 
 statement ok
+SUMMARIZE employees_all
+
+statement ok
+ANALYZE
+
+statement ok
 CREATE TABLE employees_cta_1 as select * from employees_all
 
 query TI
