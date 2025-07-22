@@ -112,6 +112,10 @@ namespace duckdb
 
         scan_bind_data_->examine_schema(context, false);
 
+        returning_data_chunk.Initialize(Allocator::Get(context),
+                                        scan_bind_data_->return_types(),
+                                        STANDARD_VECTOR_SIZE);
+
         // There should only be a single output column.
         D_ASSERT(scan_bind_data_->names().size() == 1);
 
@@ -176,6 +180,9 @@ namespace duckdb
       const std::shared_ptr<arrow::Schema> function_input_schema_;
       const unique_ptr<arrow::flight::FlightClient> flight_client_;
       const std::optional<std::string> transaction_id_;
+
+      unique_ptr<ArrowAppender> appender_ = nullptr;
+      DataChunk returning_data_chunk;
     };
 
     struct AirportScalarFunctionBindData : public FunctionData
@@ -236,19 +243,19 @@ namespace duckdb
     for (idx_t col_idx = 0;
          col_idx < (idx_t)schema_root.arrow_schema.n_children; col_idx++)
     {
-      auto &schema = *schema_root.arrow_schema.children[col_idx];
-      if (!schema.release)
+      auto &schema_item = *schema_root.arrow_schema.children[col_idx];
+      if (!schema_item.release)
       {
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
-      send_names.push_back(string(schema.name));
-      auto arrow_type = AirportGetArrowType(config, schema);
+      send_names.push_back(string(schema_item.name));
+      auto arrow_type = AirportGetArrowType(config, schema_item);
 
       // Indicate that the field should select any type.
       bool is_any_type = false;
-      if (schema.metadata != nullptr)
+      if (schema_item.metadata != nullptr)
       {
-        auto column_metadata = ArrowSchemaMetadata(schema.metadata);
+        auto column_metadata = ArrowSchemaMetadata(schema_item.metadata);
         if (!column_metadata.GetOption("is_any_type").empty())
         {
           is_any_type = true;
@@ -294,11 +301,11 @@ namespace duckdb
 
     // So the send schema can contain ANY fields, if it does, we want to dynamically create the schema from
     // what was supplied.
-
-    auto appender = make_uniq<ArrowAppender>(args.GetTypes(),
+    const auto arg_types = args.GetTypes();
+    auto appender = make_uniq<ArrowAppender>(arg_types,
                                              args.size(),
                                              context.GetClientProperties(),
-                                             ArrowTypeExtensionData::GetExtensionTypes(context, args.GetTypes()));
+                                             ArrowTypeExtensionData::GetExtensionTypes(context, arg_types));
 
     // Now that we have the appender append some data.
     appender->Append(args, 0, args.size(), args.size());
@@ -316,16 +323,10 @@ namespace duckdb
         this, "");
 
     scan_local_state_->Reset();
-
     scan_local_state_->chunk = scan_local_state_->stream()->GetNextChunk();
 
     auto output_size =
         MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(scan_local_state_->chunk->arrow_array.length) - scan_local_state_->chunk_offset);
-
-    DataChunk returning_data_chunk;
-    returning_data_chunk.Initialize(Allocator::Get(context),
-                                    scan_bind_data_->return_types(),
-                                    output_size);
 
     returning_data_chunk.SetCardinality(output_size);
 
