@@ -123,4 +123,5 @@ namespace duckdb
                                                                 TableFunctionInitInput &input,
                                                                 GlobalTableFunctionState *global_state_p);
 
+  InsertionOrderPreservingMap<string> AirportTakeFlightToString(TableFunctionToStringInput &input);
 }

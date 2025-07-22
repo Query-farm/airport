@@ -476,6 +476,20 @@ namespace duckdb
     }
   }
 
+  InsertionOrderPreservingMap<string> AirportTakeFlightToString(TableFunctionToStringInput &input)
+  {
+    InsertionOrderPreservingMap<string> result;
+    auto &bind_data = input.bind_data->Cast<AirportTakeFlightBindData>();
+    auto table_entry = bind_data.table_entry();
+    if (table_entry)
+    {
+      result["Table"] = table_entry->table_data->name();
+    }
+    result["Server"] = bind_data.server_location();
+    result["Descriptor"] = bind_data.descriptor().ToString();
+    return result;
+  }
+
   unique_ptr<NodeStatistics> AirportTakeFlightCardinality(ClientContext &context, const FunctionData *data)
   {
     // To estimate the cardinality of the flight, we can peek at the flight information
@@ -1119,6 +1133,7 @@ namespace duckdb
     take_flight_function_with_descriptor.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
 
     take_flight_function_with_descriptor.cardinality = AirportTakeFlightCardinality;
+    take_flight_function_with_descriptor.to_string = AirportTakeFlightToString;
     //    take_flight_function_with_descriptor.get_batch_index = nullptr;
     take_flight_function_with_descriptor.projection_pushdown = true;
     take_flight_function_with_descriptor.filter_pushdown = false;
@@ -1149,6 +1164,7 @@ namespace duckdb
     take_flight_function_with_pointer.table_scan_progress = AirportTakeFlightScanProgress;
     take_flight_function_with_pointer.statistics = AirportTakeFlightStatistics;
     take_flight_function_with_pointer.get_bind_info = AirportTakeFlightGetBindInfo;
+    take_flight_function_with_pointer.to_string = AirportTakeFlightToString;
 
     take_flight_function_set.AddFunction(take_flight_function_with_pointer);
 
