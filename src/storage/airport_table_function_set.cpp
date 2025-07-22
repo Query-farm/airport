@@ -731,6 +731,7 @@ namespace duckdb
           table_func.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
           table_func.cardinality = AirportTakeFlightCardinality;
           table_func.statistics = AirportTakeFlightStatistics;
+          table_func.to_string = AirportTakeFlightToString;
           table_func.table_scan_progress = AirportTakeFlightScanProgress;
         }
         else
