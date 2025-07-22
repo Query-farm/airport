@@ -235,6 +235,10 @@ namespace duckdb
     static void LoadInternal(ExtensionLoader &loader)
     {
         ExtensionHelper::AutoLoadExtension(loader.GetDatabaseInstance(), "httpfs");
+        if (!loader.GetDatabaseInstance().ExtensionIsLoaded("httpfs"))
+        {
+            throw MissingExtensionException("The airport extension requires the httpfs extension to be loaded!");
+        }
 
         AirportAddListFlightsFunction(loader);
         AirportAddTakeFlightFunction(loader);
