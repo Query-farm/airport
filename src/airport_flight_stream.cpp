@@ -327,9 +327,9 @@ namespace duckdb
 
     explicit FlightMetadataRecordBatchReaderAdapter(
         const AirportLocationDescriptor &location_descriptor,
-        atomic<double> *progress,
+        std::atomic<double> *progress,
         std::shared_ptr<arrow::Buffer> *last_app_metadata,
-        const std::shared_ptr<arrow::Schema> &schema,
+        std::shared_ptr<arrow::Schema> schema,
         ReaderDelegate delegate)
         : AirportLocationDescriptor(location_descriptor),
           schema_(std::move(schema)),
@@ -338,124 +338,207 @@ namespace duckdb
           last_app_metadata_(last_app_metadata),
           batch_index_(0)
     {
-    }
-
-    std::shared_ptr<arrow::Schema> schema() const override { return schema_; }
-    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch> *batch) override
-    {
-      const auto using_flight = std::holds_alternative<std::shared_ptr<arrow::flight::FlightStreamReader>>(delegate_);
-      const auto using_ipc_stream = std::holds_alternative<std::shared_ptr<arrow::ipc::RecordBatchStreamReader>>(delegate_);
-      const auto using_ipc_file = std::holds_alternative<std::shared_ptr<arrow::ipc::RecordBatchFileReader>>(delegate_);
-
-      while (true)
+      // Validate inputs
+      if (!schema_)
       {
-
-        if (using_ipc_stream)
-        {
-          auto stream_reader = std::get<std::shared_ptr<arrow::ipc::RecordBatchStreamReader>>(delegate_);
-          AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto batch_result, stream_reader->Next(), this, "ReadNext");
-          if (batch_result)
-          {
-            AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
-                auto aligned_chunk,
-                arrow::util::EnsureAlignment(batch_result, 8, arrow::default_memory_pool()),
-                this,
-                "EnsureRecordBatchAlignment");
-
-            *batch = aligned_chunk;
-
-            return arrow::Status::OK();
-          }
-          else
-          {
-            // EOS
-            *batch = nullptr;
-            return arrow::Status::OK();
-          }
-        }
-        else if (using_ipc_file)
-        {
-          auto stream_reader = std::get<std::shared_ptr<arrow::ipc::RecordBatchFileReader>>(delegate_);
-          AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto batch_result, stream_reader->ReadRecordBatch(batch_index_++), this, "ReadNext");
-          if (batch_result)
-          {
-            AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
-                auto aligned_chunk,
-                arrow::util::EnsureAlignment(batch_result, 8, arrow::default_memory_pool()),
-                this,
-                "EnsureRecordBatchAlignment");
-
-            *batch = aligned_chunk;
-
-            return arrow::Status::OK();
-          }
-          else
-          {
-            // EOS
-            *batch = nullptr;
-            return arrow::Status::OK();
-          }
-        }
-        else if (using_flight)
-        {
-          auto flight_delegate = std::get<std::shared_ptr<arrow::flight::FlightStreamReader>>(delegate_);
-          AIRPORT_ASSIGN_OR_RAISE_CONTAINER(flight::FlightStreamChunk chunk,
-                                            flight_delegate->Next(),
-                                            this,
-                                            "");
-          if (chunk.app_metadata != nullptr)
-          {
-            // Handle app metadata if needed
-            if (last_app_metadata_)
-            {
-              *last_app_metadata_ = chunk.app_metadata;
-            }
-
-            // This could be changed later on to be more generic.
-            // especially since this wrapper will be used by more values.
-            if (progress_)
-            {
-              AIRPORT_MSGPACK_UNPACK_CONTAINER(AirportScannerProgress, progress_report, (*chunk.app_metadata), this, "File to parse msgpack encoded object progress message");
-              progress_->store(progress_report.progress, std::memory_order_relaxed);
-            }
-          }
-          else
-          {
-            if (last_app_metadata_)
-            {
-              *last_app_metadata_ = nullptr;
-            }
-          }
-
-          if (chunk.data)
-          {
-            AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
-                auto aligned_chunk,
-                arrow::util::EnsureAlignment(chunk.data, 8, arrow::default_memory_pool()),
-                this,
-                "EnsureRecordBatchAlignment");
-
-            *batch = aligned_chunk;
-          }
-          else
-          {
-            *batch = nullptr;
-          }
-
-          return arrow::Status::OK();
-        }
+        throw std::invalid_argument("Schema cannot be null");
       }
     }
 
+    std::shared_ptr<arrow::Schema> schema() const override
+    {
+      return schema_;
+    }
+
+    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch> *batch) override
+    {
+      if (!batch)
+      {
+        return arrow::Status::Invalid("Output batch pointer cannot be null");
+      }
+
+      return std::visit([this, batch](auto &&reader) -> arrow::Status
+                        {
+            using T = std::decay_t<decltype(reader)>;
+
+            if constexpr (std::is_same_v<T, std::shared_ptr<arrow::ipc::RecordBatchStreamReader>>) {
+                return ReadFromStreamReader(reader, batch);
+            }
+            else if constexpr (std::is_same_v<T, std::shared_ptr<arrow::ipc::RecordBatchFileReader>>) {
+                return ReadFromFileReader(reader, batch);
+            }
+            else if constexpr (std::is_same_v<T, std::shared_ptr<arrow::flight::FlightStreamReader>>) {
+                return ReadFromFlightReader(reader, batch);
+            }
+            else if constexpr (std::is_same_v<T, std::shared_ptr<AirportLocalScanData>>) {
+                return ReadFromLocalScanData(reader, batch);
+            }
+            else {
+                return arrow::Status::NotImplemented("Unsupported reader type");
+            } }, delegate_);
+    }
+
   private:
+    arrow::Status ReadFromStreamReader(
+        const std::shared_ptr<arrow::ipc::RecordBatchStreamReader> &reader,
+        std::shared_ptr<arrow::RecordBatch> *batch)
+    {
+      if (!reader)
+      {
+        return arrow::Status::Invalid("Stream reader is null");
+      }
+
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto batch_result, reader->Next(), this, "ReadNext");
+
+      if (batch_result)
+      {
+        return EnsureAlignmentAndAssign(batch_result, batch);
+      }
+      else
+      {
+        *batch = nullptr; // End of stream
+        return arrow::Status::OK();
+      }
+    }
+
+    arrow::Status ReadFromFileReader(
+        const std::shared_ptr<arrow::ipc::RecordBatchFileReader> &reader,
+        std::shared_ptr<arrow::RecordBatch> *batch)
+    {
+      if (!reader)
+      {
+        return arrow::Status::Invalid("File reader is null");
+      }
+
+      // Check bounds before reading
+      if (batch_index_ >= static_cast<size_t>(reader->num_record_batches()))
+      {
+        *batch = nullptr; // End of file
+        return arrow::Status::OK();
+      }
+
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
+          auto batch_result,
+          reader->ReadRecordBatch(batch_index_++),
+          this,
+          "ReadNext");
+
+      if (batch_result)
+      {
+        return EnsureAlignmentAndAssign(batch_result, batch);
+      }
+      else
+      {
+        *batch = nullptr; // End of file
+        return arrow::Status::OK();
+      }
+    }
+
+    arrow::Status ReadFromFlightReader(
+        const std::shared_ptr<arrow::flight::FlightStreamReader> &reader,
+        std::shared_ptr<arrow::RecordBatch> *batch)
+    {
+      if (!reader)
+      {
+        return arrow::Status::Invalid("Flight reader is null");
+      }
+
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
+          arrow::flight::FlightStreamChunk chunk,
+          reader->Next(),
+          this,
+          "FlightReader::Next");
+
+      // Handle application metadata
+      auto status = ProcessAppMetadata(chunk.app_metadata);
+      if (!status.ok())
+      {
+        return status;
+      }
+
+      if (chunk.data)
+      {
+        return EnsureAlignmentAndAssign(chunk.data, batch);
+      }
+      else
+      {
+        *batch = nullptr; // End of stream
+        return arrow::Status::OK();
+      }
+    }
+
+    arrow::Status ReadFromLocalScanData(
+        const std::shared_ptr<AirportLocalScanData> & /*scan_data*/,
+        std::shared_ptr<arrow::RecordBatch> *batch)
+    {
+      // Placeholder for local scan data implementation
+      *batch = nullptr;
+      return arrow::Status::NotImplemented("Local scan data reading not implemented");
+    }
+
+    arrow::Status ProcessAppMetadata(const std::shared_ptr<arrow::Buffer> &app_metadata)
+    {
+      if (last_app_metadata_)
+      {
+        *last_app_metadata_ = app_metadata;
+      }
+
+      if (app_metadata && progress_)
+      {
+        try
+        {
+          AIRPORT_MSGPACK_UNPACK_CONTAINER(
+              AirportScannerProgress,
+              progress_report,
+              (*app_metadata),
+              this,
+              "Failed to parse msgpack encoded progress message");
+
+          // Validate progress value
+          if (progress_report.progress >= 0.0 && progress_report.progress <= 1.0)
+          {
+            progress_->store(progress_report.progress, std::memory_order_relaxed);
+          }
+          else
+          {
+            return arrow::Status::Invalid("Progress value out of range [0.0, 1.0]: " +
+                                          std::to_string(progress_report.progress));
+          }
+        }
+        catch (const std::exception &e)
+        {
+          return arrow::Status::Invalid("Error processing progress metadata: " + std::string(e.what()));
+        }
+      }
+
+      return arrow::Status::OK();
+    }
+
+    arrow::Status EnsureAlignmentAndAssign(
+        const std::shared_ptr<arrow::RecordBatch> &source_batch,
+        std::shared_ptr<arrow::RecordBatch> *target_batch)
+    {
+      if (!source_batch)
+      {
+        return arrow::Status::Invalid("Source batch is null");
+      }
+
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
+          auto aligned_batch,
+          arrow::util::EnsureAlignment(source_batch, 8, arrow::default_memory_pool()),
+          this,
+          "EnsureRecordBatchAlignment");
+
+      *target_batch = aligned_batch;
+      return arrow::Status::OK();
+    }
+
+    // Member variables
     const std::shared_ptr<arrow::Schema> schema_;
-
     const ReaderDelegate delegate_;
-
-    atomic<double> *progress_;
+    std::atomic<double> *progress_;
     std::shared_ptr<arrow::Buffer> *last_app_metadata_;
-
-    size_t batch_index_;
+    std::size_t batch_index_;
   };
 
   /// Arrow array stream factory function
