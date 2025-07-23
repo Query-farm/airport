@@ -390,6 +390,7 @@ namespace duckdb
   struct AirportDynamicTableInOutGlobalState : public GlobalTableFunctionState, public AirportExchangeGlobalState
   {
     mutable mutex lock;
+    bool continuing_current_chunk = false;
   };
 
   struct AirportTableFunctionInOutParameters
@@ -555,63 +556,84 @@ namespace duckdb
     return global_state;
   }
 
+  static const arrow::Buffer chunk_continues_buffer("chunk_continues");
+  static const arrow::Buffer chunk_finished_buffer("chunk_finished");
+
   static OperatorResultType AirportTakeFlightInOut(ExecutionContext &context, TableFunctionInput &data_p, DataChunk &input,
                                                    DataChunk &output)
   {
     auto &global_state = data_p.global_state->Cast<AirportDynamicTableInOutGlobalState>();
     lock_guard<mutex> l(global_state.lock);
 
-    auto appender = make_uniq<ArrowAppender>(
-        input.GetTypes(),
-        input.size(),
-        context.client.GetClientProperties(),
-        ArrowTypeExtensionData::GetExtensionTypes(
-            context.client, input.GetTypes()));
+    if (!global_state.continuing_current_chunk)
+    {
+      // We are not still reading data from the previous chunk.
+      auto appender = make_uniq<ArrowAppender>(
+          input.GetTypes(),
+          input.size(),
+          context.client.GetClientProperties(),
+          ArrowTypeExtensionData::GetExtensionTypes(
+              context.client, input.GetTypes()));
 
-    appender->Append(input, 0, input.size(), input.size());
-    ArrowArray arr = appender->Finalize();
+      appender->Append(input, 0, input.size(), input.size());
+      ArrowArray arr = appender->Finalize();
 
-    AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
-        auto record_batch,
-        arrow::ImportRecordBatch(&arr, global_state.send_schema),
-        global_state.scan_bind_data,
-        "airport_dynamic_table_function: import record batch");
+      AIRPORT_ASSIGN_OR_RAISE_CONTAINER(
+          auto record_batch,
+          arrow::ImportRecordBatch(&arr, global_state.send_schema),
+          global_state.scan_bind_data,
+          "airport_dynamic_table_function: import record batch");
 
-    // Now send it
-    AIRPORT_ARROW_ASSERT_OK_CONTAINER(
-        global_state.writer->WriteRecordBatch(*record_batch),
-        global_state.scan_bind_data,
-        "airport_dynamic_table_function: write record batch");
+      // Now send it
+      AIRPORT_ARROW_ASSERT_OK_CONTAINER(
+          global_state.writer->WriteRecordBatch(*record_batch),
+          global_state.scan_bind_data,
+          "airport_dynamic_table_function: write record batch");
+    }
 
-    // The server could produce results, so we should read them.
-    //
-    // it would be nice to know if we should expect results or not.
-    // but that would require reading more of the stream than what we can
-    // do right now.
-    //
-    // Rusty: for now just produce a chunk for every chunk read.
     output.Reset();
     {
       auto &data = global_state.scan_table_function_input->bind_data->CastNoConst<AirportTakeFlightBindData>();
       auto &state = global_state.scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
-      //      auto &global_state2 = global_state.scan_table_function_input->global_state->Cast<AirportArrowScanGlobalState>();
 
-      state.chunk = state.stream()->GetNextChunk();
+      if (state.chunk_offset == 0)
+      {
+        state.chunk = state.stream()->GetNextChunk();
+      }
 
       auto output_size =
           MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-      output.SetCardinality(state.chunk->arrow_array.length);
+      output.SetCardinality(output_size);
 
-      state.lines_read += output_size;
       ArrowTableFunction::ArrowToDuckDB(state,
                                         // I'm not sure if arrow table will be defined
                                         data.arrow_table.GetColumns(),
                                         output,
-                                        state.lines_read - output_size,
+                                        0,
                                         false);
+      state.chunk_offset += output_size;
+      if (state.chunk_offset == state.chunk->arrow_array.length)
+      {
+        state.chunk_offset = 0;
+      }
       output.Verify();
+
+      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != state.chunk->arrow_array.length)
+      {
+        global_state.continuing_current_chunk = true;
+        return OperatorResultType::HAVE_MORE_OUTPUT;
+      }
+
+      auto &last_app_metadata = data.last_app_metadata;
+      if (last_app_metadata && last_app_metadata->Equals(chunk_continues_buffer))
+      {
+        global_state.continuing_current_chunk = true;
+        return OperatorResultType::HAVE_MORE_OUTPUT;
+      }
+      D_ASSERT(last_app_metadata && last_app_metadata->Equals(chunk_finished_buffer));
     }
 
+    global_state.continuing_current_chunk = false;
     return OperatorResultType::NEED_MORE_INPUT;
   }
 
@@ -621,55 +643,68 @@ namespace duckdb
     auto &global_state = data_p.global_state->Cast<AirportDynamicTableInOutGlobalState>();
     lock_guard<mutex> l(global_state.lock);
 
-    const arrow::Buffer finished_buffer("finished");
+    if (!global_state.continuing_current_chunk)
+    {
+      // So we need to send data to the server.
+      AIRPORT_ARROW_ASSERT_OK_CONTAINER(
+          global_state.writer->DoneWriting(),
+          global_state.scan_bind_data,
+          "airport_dynamic_table_function: finalize done writing");
 
-    // So we need to send data to the server.
-    AIRPORT_ARROW_ASSERT_OK_CONTAINER(
-        global_state.writer->DoneWriting(),
-        global_state.scan_bind_data,
-        "airport_dynamic_table_function: finalize done writing");
+      auto stats = global_state.writer->stats();
+      DUCKDB_LOG(context, AirportLogType, "Dynamic Table Function Write Stats", {{"num_messages", to_string(stats.num_messages)}, {"num_record_batches", to_string(stats.num_record_batches)}, {"num_dictionary_batches", to_string(stats.num_dictionary_batches)}, {"num_dictionary_deltas", to_string(stats.num_dictionary_deltas)}, {"num_replaced_dictionaries", to_string(stats.num_replaced_dictionaries)}, {"total_raw_body_size", to_string(stats.total_raw_body_size)}, {"total_serialized_body_size", to_string(stats.total_serialized_body_size)}});
+    }
 
-    auto stats = global_state.writer->stats();
-    DUCKDB_LOG(context, AirportLogType, "Dynamic Table Function Write Stats", {{"num_messages", to_string(stats.num_messages)}, {"num_record_batches", to_string(stats.num_record_batches)}, {"num_dictionary_batches", to_string(stats.num_dictionary_batches)}, {"num_dictionary_deltas", to_string(stats.num_dictionary_deltas)}, {"num_replaced_dictionaries", to_string(stats.num_replaced_dictionaries)}, {"total_raw_body_size", to_string(stats.total_raw_body_size)}, {"total_serialized_body_size", to_string(stats.total_serialized_body_size)}});
-
-    bool is_finished = false;
+    output.Reset();
     {
       auto &scan_data = global_state.scan_table_function_input;
       auto &data = scan_data->bind_data->CastNoConst<AirportTakeFlightBindData>();
       auto &state = scan_data->local_state->Cast<AirportArrowScanLocalState>();
       //      auto &global_state2 = scan_data->global_state->Cast<AirportArrowScanGlobalState>();
 
-      state.chunk = state.stream()->GetNextChunk();
-
-      auto &last_app_metadata = data.last_app_metadata;
-      if (last_app_metadata && last_app_metadata->Equals(finished_buffer))
+      if (state.chunk_offset == 0)
       {
-        is_finished = true;
+        state.chunk = state.stream()->GetNextChunk();
       }
 
       auto output_size =
           MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-      output.SetCardinality(state.chunk->arrow_array.length);
+      output.SetCardinality(output_size);
 
-      state.lines_read += output_size;
       if (output_size > 0)
       {
         ArrowTableFunction::ArrowToDuckDB(state,
                                           // I'm not sure if arrow table will be defined
                                           data.arrow_table.GetColumns(),
                                           output,
-                                          state.lines_read - output_size,
+                                          0,
                                           false);
+        state.chunk_offset += output_size;
+      }
+
+      if (state.chunk_offset == state.chunk->arrow_array.length)
+      {
+        state.chunk_offset = 0;
       }
       output.Verify();
+
+      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != state.chunk->arrow_array.length)
+      {
+        global_state.continuing_current_chunk = true;
+        return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
+      }
+
+      auto &last_app_metadata = data.last_app_metadata;
+      if (last_app_metadata && last_app_metadata->Equals(chunk_continues_buffer))
+      {
+        global_state.continuing_current_chunk = true;
+        return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
+      }
+      D_ASSERT(last_app_metadata && last_app_metadata->Equals(chunk_finished_buffer));
     }
 
-    if (is_finished)
-    {
-      return OperatorFinalizeResultType::FINISHED;
-    }
-    // there may be more data.
-    return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
+    global_state.continuing_current_chunk = false;
+    return OperatorFinalizeResultType::FINISHED;
   }
 
   void AirportTableFunctionSet::LoadEntries(ClientContext &context)

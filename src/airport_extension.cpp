@@ -20,7 +20,7 @@
 #include "duckdb/main/extension_helper.hpp"
 #include "airport_logging.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "20250713.01"
+#define AIRPORT_EXTENSION_VERSION "20250723.01"
 
 namespace duckdb
 {

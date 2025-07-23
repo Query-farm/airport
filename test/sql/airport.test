@@ -538,6 +538,16 @@ Sloane	Mary Brown
 last	row
 
 query I
+select count(*) from test1.utils.test_table_in_out_long((select name from workers)) order by 1;
+----
+30
+
+query II
+select count(distinct multiplier), count(distinct value) from test1.utils.test_table_in_out_huge((select name from workers)) order by 1;
+----
+5000	13
+
+query I
 select result::int from test1.utils.test_repeat('123', 5);
 ----
 123
@@ -771,6 +781,11 @@ Binder Error: Referenced column "age" not found in FROM clause!
 # Check that statistics work
 statement ok
 select * from test1.static_data.employees;
+
+query I
+select count(distinct id) from test1.static_data.big_chunk
+----
+100000
 
 statement ok
 select airport_version();

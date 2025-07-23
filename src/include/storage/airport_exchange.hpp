@@ -109,13 +109,17 @@ namespace duckdb
 
       auto output_size =
           MinValue<idx_t>(STANDARD_VECTOR_SIZE, NumericCast<idx_t>(state.chunk->arrow_array.length) - state.chunk_offset);
-      state.lines_read += output_size;
-      dest.SetCardinality(state.chunk->arrow_array.length);
+      dest.SetCardinality(output_size);
+
+      // We should only get the number of rows == to the number of rows sent in the chunk
+      // to the server.
+      D_ASSERT(output_size <= STANDARD_VECTOR_SIZE);
 
       ArrowTableFunction::ArrowToDuckDB(state,
                                         data.arrow_table.GetColumns(),
                                         dest,
-                                        state.lines_read - output_size, false);
+                                        0,
+                                        false);
       dest.Verify();
     }
 
