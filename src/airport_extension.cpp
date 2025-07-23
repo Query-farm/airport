@@ -59,9 +59,9 @@ namespace duckdb
         function.named_parameters["auth_token"] = LogicalType::VARCHAR;
     }
 
-    static unique_ptr<Catalog> AirportCatalogAttach(StorageExtensionInfo *storage_info, ClientContext &context,
+    static unique_ptr<Catalog> AirportCatalogAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
                                                     AttachedDatabase &db, const string &name, AttachInfo &info,
-                                                    AccessMode access_mode)
+                                                    AttachOptions &options)
     {
         string secret_name;
         string auth_token;
@@ -100,10 +100,10 @@ namespace duckdb
             throw BinderException("No location provided for Airport ATTACH.");
         }
 
-        return make_uniq<AirportCatalog>(db, info.path, access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
+        return make_uniq<AirportCatalog>(db, info.path, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
     }
 
-    static unique_ptr<TransactionManager> CreateTransactionManager(StorageExtensionInfo *storage_info, AttachedDatabase &db,
+    static unique_ptr<TransactionManager> CreateTransactionManager(optional_ptr<StorageExtensionInfo> storage_info, AttachedDatabase &db,
                                                                    Catalog &catalog)
     {
         auto &airport_catalog = catalog.Cast<AirportCatalog>();
