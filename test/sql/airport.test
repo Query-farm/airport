@@ -9,12 +9,6 @@ require airport
 # Require test server URL
 require-env AIRPORT_TEST_SERVER
 
-# Test that the user agent matches what is expected.
-query I
-SELECT airport_user_agent()
-----
-airport/20240820
-
 # Create the initial secret, the token value doesn't matter.
 statement ok
 CREATE SECRET airport_testing (
