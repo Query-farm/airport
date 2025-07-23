@@ -14,7 +14,7 @@ namespace duckdb
     return UUID::ToString(UUID::GenerateRandomUUID());
   }
 
-  std::string airport_user_agent()
+  const std::string airport_user_agent() noexcept
   {
     return AIRPORT_USER_AGENT;
   }
@@ -24,19 +24,19 @@ namespace duckdb
   static const std::string airport_session_id = UUID::ToString(UUID::GenerateRandomUUID());
 
   static void
-  airport_add_headers(std::vector<std::pair<std::string, std::string>> &headers, const std::string &server_location)
+  airport_add_headers(std::vector<std::pair<std::string, std::string>> &headers, const std::string &server_location) noexcept
   {
     headers.emplace_back("airport-user-agent", AIRPORT_USER_AGENT);
     headers.emplace_back("authority", server_location);
     headers.emplace_back("airport-client-session-id", airport_session_id);
   }
 
-  void airport_add_standard_headers(arrow::flight::FlightCallOptions &options, const std::string &server_location)
+  void airport_add_standard_headers(arrow::flight::FlightCallOptions &options, const std::string &server_location) noexcept
   {
     airport_add_headers(options.headers, server_location);
   }
 
-  void airport_add_authorization_header(arrow::flight::FlightCallOptions &options, const std::string &auth_token)
+  void airport_add_authorization_header(arrow::flight::FlightCallOptions &options, const std::string &auth_token) noexcept
   {
     if (auth_token.empty())
     {
@@ -79,7 +79,7 @@ namespace duckdb
   void airport_add_normal_headers(arrow::flight::FlightCallOptions &options,
                                   const AirportTakeFlightParameters &params,
                                   const string &trace_id,
-                                  std::optional<arrow::flight::FlightDescriptor> descriptor)
+                                  const std::optional<arrow::flight::FlightDescriptor> &descriptor)
   {
     airport_add_standard_headers(options, params.server_location());
     airport_add_authorization_header(options, params.auth_token());
