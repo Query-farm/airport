@@ -36,13 +36,12 @@ namespace duckdb
   public:
     AirportArrowScanFunctionData(stream_factory_produce_t scanner_producer_p, uintptr_t stream_factory_ptr_p,
                                  shared_ptr<DependencyItem> dependency = nullptr)
-        : lines_read(0), rows_per_thread(0), stream_factory_ptr(stream_factory_ptr_p),
+        : rows_per_thread(0), stream_factory_ptr(stream_factory_ptr_p),
           scanner_producer(scanner_producer_p), dependency(std::move(dependency))
     {
     }
 
     vector<LogicalType> all_types;
-    atomic<idx_t> lines_read;
     ArrowSchemaWrapper schema_root;
     idx_t rows_per_thread;
     //! Pointer to the scanner factory
@@ -322,9 +321,6 @@ namespace duckdb
     }
 
     bool done = false;
-
-  public:
-    idx_t lines_read = 0;
 
   private:
     ReaderDelegate reader_;

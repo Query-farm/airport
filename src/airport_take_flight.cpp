@@ -393,10 +393,6 @@ namespace duckdb
         MinValue<int64_t>(STANDARD_VECTOR_SIZE,
                           array_length - state.chunk_offset);
 
-    // lines_read needs to be set on the local state rather than the bind state.
-
-    state.lines_read += output_size;
-
     if (global_state.CanRemoveFilterColumns())
     {
       // So state.all_columns is a smaller DataChunk, that
@@ -409,7 +405,7 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           state.all_columns,
-                                          state.lines_read - output_size,
+                                          0,
                                           false,
                                           airport_bind_data.rowid_column_index);
       }
@@ -423,7 +419,7 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           output,
-                                          state.lines_read - output_size,
+                                          0,
                                           false,
                                           airport_bind_data.rowid_column_index);
       }
@@ -829,7 +825,6 @@ namespace duckdb
 
     auto server_location = location.ToString();
 
-    local_state.lines_read = 0;
     local_state.chunk_offset = 0;
     local_state.chunk = make_uniq<ArrowArrayWrapper>();
     local_state.Reset();
