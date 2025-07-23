@@ -49,6 +49,7 @@ set(EXTENSION_SOURCES
   src/storage/airport_table_function_set.cpp
   src/airport_telemetry.cpp
   src/airport_rpc.cpp
+  src/airport_logging.cpp
 )
 
 

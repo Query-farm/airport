@@ -18,6 +18,7 @@
 #include "airport_json_common.hpp"
 #include "airport_telemetry.hpp"
 #include "duckdb/main/extension_helper.hpp"
+#include "airport_logging.hpp"
 
 #define AIRPORT_EXTENSION_VERSION "20250713.01"
 
@@ -270,6 +271,8 @@ namespace duckdb
         config.optimizer_extensions.push_back(std::move(airport_optimizer));
 
         SendTelemetry(instance.shared_from_this());
+        auto &log_manager = instance.GetLogManager();
+        log_manager.RegisterLogType(make_uniq<AirportLogType>());
     }
 
     void AirportExtension::Load(DuckDB &db)
