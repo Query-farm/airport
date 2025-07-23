@@ -40,6 +40,7 @@
 #include "storage/airport_transaction.hpp"
 #include "airport_schema_utils.hpp"
 #include "storage/airport_alter_parameters.hpp"
+#include "airport_logging.hpp"
 
 namespace duckdb
 {
@@ -627,6 +628,9 @@ namespace duckdb
         global_state.writer->DoneWriting(),
         global_state.scan_bind_data,
         "airport_dynamic_table_function: finalize done writing");
+
+    auto stats = global_state.writer->stats();
+    DUCKDB_LOG(context, AirportLogType, "Dynamic Table Function Write Stats", {{"num_messages", to_string(stats.num_messages)}, {"num_record_batches", to_string(stats.num_record_batches)}, {"num_dictionary_batches", to_string(stats.num_dictionary_batches)}, {"num_dictionary_deltas", to_string(stats.num_dictionary_deltas)}, {"num_replaced_dictionaries", to_string(stats.num_replaced_dictionaries)}, {"total_raw_body_size", to_string(stats.total_raw_body_size)}, {"total_serialized_body_size", to_string(stats.total_serialized_body_size)}});
 
     bool is_finished = false;
     {

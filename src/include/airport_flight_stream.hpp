@@ -46,7 +46,7 @@ namespace duckdb
     }
 
     // The schema of the stream that will be read.
-    const std::shared_ptr<arrow::Schema> &schema() const
+    const std::shared_ptr<arrow::Schema> &schema() const noexcept
     {
       return schema_;
     }
@@ -93,37 +93,37 @@ namespace duckdb
         const string &server_location,
         ClientContext &context);
 
-    const string &server_location() const
+    const string &server_location() const noexcept
     {
       return server_location_;
     }
 
-    const string &auth_token() const
+    const string &auth_token() const noexcept
     {
       return auth_token_;
     }
 
-    const string &secret_name() const
+    const string &secret_name() const noexcept
     {
       return secret_name_;
     }
 
-    const string &ticket() const
+    const string &ticket() const noexcept
     {
       return ticket_;
     }
 
-    const string &at_unit() const
+    const string &at_unit() const noexcept
     {
       return at_unit_;
     }
 
-    const string &at_value() const
+    const string &at_value() const noexcept
     {
       return at_value_;
     }
 
-    const std::unordered_map<string, std::vector<string>> &user_supplied_headers() const
+    const std::unordered_map<string, std::vector<string>> &user_supplied_headers() const noexcept
     {
       return user_supplied_headers_;
     }
