@@ -30,31 +30,6 @@ namespace flight = arrow::flight;
 namespace duckdb
 {
 
-  struct AirportArrowScanFunctionData : public TableFunctionData
-  {
-  public:
-    AirportArrowScanFunctionData(stream_factory_produce_t scanner_producer_p, uintptr_t stream_factory_ptr_p,
-                                 shared_ptr<DependencyItem> dependency = nullptr)
-        : rows_per_thread(0), stream_factory_ptr(stream_factory_ptr_p),
-          scanner_producer(scanner_producer_p), dependency(std::move(dependency))
-    {
-    }
-
-    vector<LogicalType> all_types;
-    ArrowSchemaWrapper schema_root;
-    idx_t rows_per_thread;
-    //! Pointer to the scanner factory
-    uintptr_t stream_factory_ptr;
-    //! Pointer to the scanner factory produce
-    stream_factory_produce_t scanner_producer;
-    //! The (optional) dependency of this function (used in Python for example)
-    shared_ptr<DependencyItem> dependency;
-    //! Arrow table data
-    AirportArrowTableSchema arrow_table;
-    //! Whether projection pushdown is enabled on the scan
-    bool projection_pushdown_enabled = true;
-  };
-
   struct AirportArrowStreamParameters : public ArrowStreamParameters, public AirportLocationDescriptor
   {
     explicit AirportArrowStreamParameters(
