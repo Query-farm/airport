@@ -34,6 +34,7 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include "airport_rpc.hpp"
+#include "airport_logging.hpp"
 
 namespace duckdb
 {
@@ -438,6 +439,7 @@ namespace duckdb
     // so just return the empty output.
     if (data_p.local_state == nullptr)
     {
+      DUCKDB_LOG(context, AirportLogType, "Take Flight", {{"status", "No endpoints to scan"}});
       output.SetCardinality(0);
       return;
     }
@@ -1112,7 +1114,6 @@ namespace duckdb
 
   void AirportAddTakeFlightFunction(ExtensionLoader &loader)
   {
-
     auto take_flight_function_set = TableFunctionSet("airport_take_flight");
 
     auto take_flight_function_with_descriptor = TableFunction(
