@@ -333,10 +333,18 @@ namespace duckdb
     auto stats = gstate.writer->stats();
     DUCKDB_LOG(context, AirportLogType, "Insert Write Stats", {{"num_messages", to_string(stats.num_messages)}, {"num_record_batches", to_string(stats.num_record_batches)}, {"num_dictionary_batches", to_string(stats.num_dictionary_batches)}, {"num_dictionary_deltas", to_string(stats.num_dictionary_deltas)}, {"num_replaced_dictionaries", to_string(stats.num_replaced_dictionaries)}, {"total_raw_body_size", to_string(stats.total_raw_body_size)}, {"total_serialized_body_size", to_string(stats.total_serialized_body_size)}});
 
-    auto changed_count = gstate.ReadChangedCount(gstate.table.table_data->server_location());
-    if (changed_count)
+    try
     {
-      gstate.changed_count = *changed_count;
+      auto changed_count = gstate.ReadChangedCount(gstate.table.table_data->server_location());
+      if (changed_count)
+      {
+        gstate.changed_count = *changed_count;
+      }
+    }
+    catch (...)
+    {
+      auto result = gstate.writer->Close();
+      throw;
     }
 
     return SinkFinalizeType::READY;

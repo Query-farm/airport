@@ -1,6 +1,35 @@
 #pragma once
 
 #include "airport_flight_exception.hpp"
+#include "msgpack.hpp"
+namespace duckdb
+{
+  struct AirportErrorExtraInfo
+  {
+    std::string exception_type;
+    std::string message;
+
+    MSGPACK_DEFINE_MAP(exception_type, message)
+
+    [[noreturn]] void RaiseException() const
+    {
+      static const std::unordered_map<std::string, std::function<void(const std::string &)>> handlers = {
+          {"ConstraintException", [](const std::string &msg)
+           {
+             throw ConstraintException(msg);
+           }},
+          // Add more exception types here as needed
+      };
+
+      auto it = handlers.find(exception_type);
+      if (it != handlers.end())
+      {
+        it->second(message);
+      }
+      throw NotImplementedException("Unknown exception type: " + exception_type + " with message: " + message);
+    }
+  };
+}
 
 #define AIRPORT_ARROW_ASSERT_OK_LOCATION(expr, location, message)                    \
   for (::arrow::Status _st = ::arrow::internal::GenericToStatus((expr)); !_st.ok();) \
@@ -27,6 +56,17 @@
   {                                                                                                                          \
     if (ARROW_PREDICT_FALSE(condition))                                                                                      \
     {                                                                                                                        \
+      auto status_detail = flight::FlightStatusDetail::UnwrapStatus(status);                                                 \
+      if (status_detail != nullptr && !status_detail->extra_info().empty())                                                  \
+      {                                                                                                                      \
+        AIRPORT_MSGPACK_UNPACK(                                                                                              \
+            AirportErrorExtraInfo,                                                                                           \
+            extra_error_info,                                                                                                \
+            (status_detail->extra_info()),                                                                                   \
+            location,                                                                                                        \
+            "Failed to parse msgpack encoded error details")                                                                 \
+        extra_error_info.RaiseException();                                                                                   \
+      }                                                                                                                      \
       throw AirportFlightException(location, descriptor, status, message, {{"extra_details", string(extra_message)}});       \
     }                                                                                                                        \
   } while (0)
@@ -36,6 +76,17 @@
   {                                                                                                        \
     if (ARROW_PREDICT_FALSE(condition))                                                                    \
     {                                                                                                      \
+      auto status_detail = flight::FlightStatusDetail::UnwrapStatus(status);                               \
+      if (status_detail != nullptr && !status_detail->extra_info().empty())                                \
+      {                                                                                                    \
+        AIRPORT_MSGPACK_UNPACK(                                                                            \
+            AirportErrorExtraInfo,                                                                         \
+            extra_error_info,                                                                              \
+            (status_detail->extra_info()),                                                                 \
+            location,                                                                                      \
+            "Failed to parse msgpack encoded error details")                                               \
+        extra_error_info.RaiseException();                                                                 \
+      }                                                                                                    \
       throw AirportFlightException(location, status, message, {{"extra_details", string(extra_message)}}); \
     }                                                                                                      \
   } while (0)

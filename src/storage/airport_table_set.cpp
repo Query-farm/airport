@@ -253,8 +253,15 @@ namespace duckdb
     std::vector<uint64_t> unique_constraints;
     std::vector<std::string> check_constraints;
 
+    std::vector<std::string> primary_key_columns;
+    std::vector<std::string> unique_columns;
+
+    unordered_set<std::string> multi_key_primary_keys;
+    std::vector<std::string> extra_constraints;
+
     MSGPACK_DEFINE_MAP(catalog_name, schema_name, table_name, arrow_schema, on_conflict,
-                       not_null_constraints, unique_constraints, check_constraints)
+                       not_null_constraints, unique_constraints, check_constraints, primary_key_columns,
+                       unique_columns, multi_key_primary_keys, extra_constraints)
   };
 
   unique_ptr<AirportTableEntry> AirportCatalogEntryFromFlightInfo(
@@ -384,8 +391,38 @@ namespace duckdb
       }
       else if (c->type == ConstraintType::UNIQUE)
       {
-        auto unique_constraint = reinterpret_cast<UniqueConstraint *>(c.get());
-        params.unique_constraints.push_back(unique_constraint->index.index);
+        auto &pk = c->Cast<UniqueConstraint>();
+        if (pk.HasIndex())
+        {
+          // Single column is specified.
+          if (pk.IsPrimaryKey())
+          {
+            params.primary_key_columns.push_back(pk.GetColumnNames()[0]);
+          }
+          else
+          {
+            for (auto &col : pk.GetColumnNames())
+            {
+              params.unique_columns.push_back(col);
+            }
+          }
+        }
+        else
+        {
+          // multi-column constraint
+          if (pk.IsPrimaryKey())
+          {
+            // multi key pk column: insert set of columns into multi_key_pks
+            for (auto &col : pk.GetColumnNames())
+            {
+              params.multi_key_primary_keys.insert(col);
+            }
+          }
+          else
+          {
+            params.extra_constraints.push_back(pk.ToString());
+          }
+        }
       }
       else if (c->type == ConstraintType::CHECK)
       {
