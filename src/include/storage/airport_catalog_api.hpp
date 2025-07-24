@@ -108,11 +108,13 @@ namespace duckdb
     // This is the function description for table or scalar functions.
     std::optional<string> description;
 
+    std::optional<string> extra_data;
+
     MSGPACK_DEFINE_MAP(
         type, schema,
         catalog, name,
         comment, input_schema,
-        action_name, description)
+        action_name, description, extra_data)
   };
 
   struct AirportAPIObjectBase : public AirportLocationDescriptor
