@@ -18,8 +18,14 @@ namespace duckdb
            {
              throw ConstraintException(msg);
            }},
-          // Add more exception types here as needed
-      };
+          {"PermissionException", [](const std::string &msg)
+           {
+             throw PermissionException(msg);
+           }},
+          {"InvalidInputException", [](const std::string &msg)
+           {
+             throw InvalidInputException(msg);
+           }}};
 
       auto it = handlers.find(exception_type);
       if (it != handlers.end())
