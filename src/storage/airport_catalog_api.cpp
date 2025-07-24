@@ -125,7 +125,7 @@ namespace duckdb
       result[duckdb_mbedtls::MbedTlsWrapper::SHA256_HASH_LENGTH_TEXT] = '\0';
 
       duckdb_mbedtls::MbedTlsWrapper::SHA256State state;
-      state.AddBytes((duckdb::data_ptr_t)input.data(), input.size());
+      state.AddString(string(input));
       state.FinishHex(result);
       return result;
     }
