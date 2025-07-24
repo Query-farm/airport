@@ -108,6 +108,7 @@ namespace duckdb
     // This is the function description for table or scalar functions.
     std::optional<string> description;
 
+    // Extra data that can be used to pass additional information for the type.
     std::optional<string> extra_data;
 
     MSGPACK_DEFINE_MAP(
@@ -122,24 +123,17 @@ namespace duckdb
 
   public:
     AirportAPIObjectBase(
-        const arrow::flight::FlightDescriptor &descriptor,
-        const std::shared_ptr<arrow::Schema> &schema,
-        const std::string &server_location,
-        const std::string &catalog,
-        const std::string &schema_name,
-        const std::string &name,
-        const std::optional<std::string> &comment = std::nullopt,
-        const std::optional<std::string> &input_schema = std::nullopt)
-        : AirportLocationDescriptor(server_location, descriptor),
-          schema_(schema),
-          catalog_name_(catalog),
-          schema_name_(schema_name),
-          name_(name),
-          comment_(comment)
+        const arrow::flight::FlightDescriptor descriptor,
+        const std::shared_ptr<arrow::Schema> schema,
+        const std::string server_location,
+        const AirportSerializedFlightAppMetadata parsed_app_metadata)
+        : AirportLocationDescriptor(std::move(server_location), std::move(descriptor)),
+          schema_(std::move(schema)),
+          parsed_app_metadata_(std::move(parsed_app_metadata))
     {
-      if (input_schema.has_value())
+      if (parsed_app_metadata_.input_schema.has_value())
       {
-        auto &serialized_schema = input_schema.value();
+        auto &serialized_schema = parsed_app_metadata_.input_schema.value();
 
         arrow::io::BufferReader parameter_schema_reader(
             std::make_shared<arrow::Buffer>(serialized_schema));
@@ -159,21 +153,6 @@ namespace duckdb
       }
     }
 
-    AirportAPIObjectBase(
-        const arrow::flight::FlightDescriptor &descriptor,
-        const std::shared_ptr<arrow::Schema> &schema,
-        const std::string &server_location,
-        const AirportSerializedFlightAppMetadata &parsed_app_metadata) : AirportAPIObjectBase(descriptor,
-                                                                                              schema,
-                                                                                              server_location,
-                                                                                              parsed_app_metadata.catalog,
-                                                                                              parsed_app_metadata.schema,
-                                                                                              parsed_app_metadata.name,
-                                                                                              parsed_app_metadata.comment,
-                                                                                              parsed_app_metadata.input_schema)
-    {
-    }
-
     const std::shared_ptr<arrow::Schema> &schema() const
     {
       return schema_;
@@ -181,22 +160,22 @@ namespace duckdb
 
     const std::string &catalog_name() const
     {
-      return catalog_name_;
+      return parsed_app_metadata_.catalog;
     }
 
     const std::string &schema_name() const
     {
-      return schema_name_;
+      return parsed_app_metadata_.schema;
     }
 
     const std::string &name() const
     {
-      return name_;
+      return parsed_app_metadata_.name;
     }
 
     const std::optional<std::string> &comment() const
     {
-      return comment_;
+      return parsed_app_metadata_.comment;
     }
 
     const std::shared_ptr<arrow::Schema> &input_schema() const
@@ -204,7 +183,6 @@ namespace duckdb
       return input_schema_;
     }
 
-  public:
     static std::shared_ptr<arrow::Schema> GetSchema(
         const std::string &server_location,
         const arrow::flight::FlightInfo &flight_info)
@@ -222,10 +200,7 @@ namespace duckdb
   private:
     std::shared_ptr<arrow::Schema> input_schema_;
     const std::shared_ptr<arrow::Schema> schema_;
-    const string catalog_name_;
-    const string schema_name_;
-    const string name_;
-    const std::optional<string> comment_;
+    const AirportSerializedFlightAppMetadata parsed_app_metadata_;
   };
 
   struct AirportAPITable : AirportAPIObjectBase

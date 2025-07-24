@@ -9,17 +9,12 @@
 
 #include <arrow/flight/client.h>
 #include <arrow/flight/types.h>
-#include <arrow/buffer.h>
-#include <arrow/ipc/api.h>
-#include <arrow/io/memory.h>
-#include <arrow/c/bridge.h>
 #include "storage/airport_catalog_api.hpp"
 #include "storage/airport_catalog.hpp"
 
 #include "duckdb/common/file_system.hpp"
 
 #include "airport_macros.hpp"
-#include "airport_secrets.hpp"
 #include "airport_request_headers.hpp"
 #include "duckdb/common/arrow/schema_metadata.hpp"
 #include "airport_schema_utils.hpp"
@@ -455,13 +450,13 @@ namespace duckdb
       return app_metadata_obj;
     }
 
-    void handle_flight_app_metadata(const string &app_metadata,
-                                    const string &catalog_name,
-                                    const string &schema_name,
-                                    const string &server_location,
-                                    const flight::FlightDescriptor &descriptor,
-                                    std::shared_ptr<arrow::Schema> schema,
-                                    const unique_ptr<AirportSchemaContents> &contents)
+    static void handle_flight_app_metadata(const string &app_metadata,
+                                           const string &catalog_name,
+                                           const string &schema_name,
+                                           const string &server_location,
+                                           const flight::FlightDescriptor &descriptor,
+                                           std::shared_ptr<arrow::Schema> schema,
+                                           const unique_ptr<AirportSchemaContents> &contents)
     {
       auto parsed_app_metadata = ParseFlightAppMetadata(app_metadata, server_location);
       if (parsed_app_metadata.catalog != catalog_name)
@@ -473,7 +468,9 @@ namespace duckdb
         throw AirportFlightException(server_location, descriptor, string("Flight metadata schema name does not match expected value, expected '" + schema_name + "' found '" + parsed_app_metadata.schema + "'"), "");
       }
 
-      if (parsed_app_metadata.type == "table")
+      const auto &type = parsed_app_metadata.type;
+
+      if (type == "table")
       {
         contents->tables.emplace_back(AirportAPITable(
             server_location,
@@ -481,7 +478,7 @@ namespace duckdb
             schema,
             parsed_app_metadata));
       }
-      else if (parsed_app_metadata.type == "table_function")
+      else if (type == "table_function")
       {
         contents->table_functions.emplace_back(AirportAPITableFunction(
             server_location,
@@ -489,7 +486,7 @@ namespace duckdb
             schema,
             parsed_app_metadata));
       }
-      else if (parsed_app_metadata.type == "scalar_function")
+      else if (type == "scalar_function")
       {
         contents->scalar_functions.emplace_back(AirportAPIScalarFunction(
             server_location,
@@ -499,7 +496,7 @@ namespace duckdb
       }
       else
       {
-        throw AirportFlightException(server_location, descriptor, "Unknown object type in app_metadata", parsed_app_metadata.type);
+        throw AirportFlightException(server_location, descriptor, "Unknown object type in app_metadata", type);
       }
     }
   }
