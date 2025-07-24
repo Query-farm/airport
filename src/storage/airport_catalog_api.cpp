@@ -1,12 +1,4 @@
 #include "airport_extension.hpp"
-
-#include <openssl/evp.h>
-#include <openssl/sha.h>
-#include <iomanip>
-#include <random>
-#include <string_view>
-#include <vector>
-
 #include <arrow/flight/client.h>
 #include <arrow/flight/types.h>
 #include "storage/airport_catalog_api.hpp"
@@ -20,6 +12,7 @@
 #include "airport_schema_utils.hpp"
 #include "airport_rpc.hpp"
 #include "duckdb/common/http_util.hpp"
+#include "mbedtls_wrapper.hpp"
 
 namespace flight = arrow::flight;
 
@@ -128,46 +121,24 @@ namespace duckdb
   {
     std::string SHA256ForString(const std::string_view &input)
     {
-      EVP_MD_CTX *context = EVP_MD_CTX_new();
-      const EVP_MD *md = EVP_sha256();
+      char result[duckdb_mbedtls::MbedTlsWrapper::SHA256_HASH_LENGTH_TEXT + 1];
+      result[duckdb_mbedtls::MbedTlsWrapper::SHA256_HASH_LENGTH_TEXT] = '\0';
 
-      unsigned char hash[EVP_MAX_MD_SIZE];
-      unsigned int lengthOfHash = 0;
-
-      EVP_DigestInit_ex(context, md, nullptr);
-      EVP_DigestUpdate(context, input.data(), input.size());
-      EVP_DigestFinal_ex(context, hash, &lengthOfHash);
-      EVP_MD_CTX_free(context);
-
-      std::stringstream ss;
-      for (unsigned int i = 0; i < lengthOfHash; ++i)
-      {
-        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
-      }
-
-      return ss.str();
+      duckdb_mbedtls::MbedTlsWrapper::SHA256State state;
+      state.AddBytes((duckdb::data_ptr_t)input.data(), input.size());
+      state.FinishHex(result);
+      return result;
     }
 
     std::string SHA256ForString(const std::string &input)
     {
-      EVP_MD_CTX *context = EVP_MD_CTX_new();
-      const EVP_MD *md = EVP_sha256();
+      char result[duckdb_mbedtls::MbedTlsWrapper::SHA256_HASH_LENGTH_TEXT + 1];
+      result[duckdb_mbedtls::MbedTlsWrapper::SHA256_HASH_LENGTH_TEXT] = '\0';
 
-      unsigned char hash[EVP_MAX_MD_SIZE];
-      unsigned int lengthOfHash = 0;
-
-      EVP_DigestInit_ex(context, md, nullptr);
-      EVP_DigestUpdate(context, input.data(), input.size());
-      EVP_DigestFinal_ex(context, hash, &lengthOfHash);
-      EVP_MD_CTX_free(context);
-
-      std::stringstream ss;
-      for (unsigned int i = 0; i < lengthOfHash; ++i)
-      {
-        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
-      }
-
-      return ss.str();
+      duckdb_mbedtls::MbedTlsWrapper::SHA256State state;
+      state.AddString(input);
+      state.FinishHex(result);
+      return result;
     }
 
     std::pair<HTTPStatusCode, std::string> GetRequest(ClientContext &context, const string &url, const string expected_sha256)
