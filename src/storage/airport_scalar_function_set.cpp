@@ -145,7 +145,7 @@ namespace duckdb
                                           nullptr,
                                           AirportScalarFunctionInitLocalState,
                                           LogicalTypeId::INVALID,
-                                          duckdb::FunctionStability::VOLATILE,
+                                          function.stability(),
                                           duckdb::FunctionNullHandling::DEFAULT_NULL_HANDLING,
                                           nullptr);
         scalar_func.function_info = make_uniq<AirportScalarFunctionInfo>(function.name(),
