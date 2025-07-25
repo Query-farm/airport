@@ -231,6 +231,12 @@ namespace duckdb
     }
   };
 
+  struct AirportScalarFunctionExtraInfo
+  {
+    std::string stability;
+    MSGPACK_DEFINE_MAP(stability)
+  };
+
   struct AirportAPIScalarFunction : AirportAPIObjectBase
   {
 
@@ -251,6 +257,31 @@ namespace duckdb
       {
         throw IOException("Function metadata does not have an input_schema defined for function " + parsed_app_metadata.schema + "." + parsed_app_metadata.name);
       }
+
+      if (parsed_app_metadata.extra_data.has_value())
+      {
+        AirportScalarFunctionExtraInfo extra_info;
+        AIRPORT_MSGPACK_UNPACK_CONTAINER(extra_info,
+                                         parsed_app_metadata.extra_data.value(),
+                                         this,
+                                         "Failed to parse extra_data for scalar function " + parsed_app_metadata.name);
+        if (extra_info.stability == "consistent")
+        {
+          stability_ = duckdb::FunctionStability::CONSISTENT;
+        }
+        else if (extra_info.stability == "volatile")
+        {
+          stability_ = duckdb::FunctionStability::VOLATILE;
+        }
+        else if (extra_info.stability == "consistent_within_query")
+        {
+          stability_ = duckdb::FunctionStability::CONSISTENT_WITHIN_QUERY;
+        }
+        else
+        {
+          throw IOException("Function metadata has an invalid stability value for function " + parsed_app_metadata.schema + "." + parsed_app_metadata.name);
+        }
+      }
     }
 
     const string &description() const
@@ -258,8 +289,14 @@ namespace duckdb
       return description_;
     }
 
+    duckdb::FunctionStability stability() const
+    {
+      return stability_;
+    }
+
   private:
     const string description_;
+    duckdb::FunctionStability stability_ = duckdb::FunctionStability::VOLATILE;
   };
 
   struct AirportAPITableFunction : AirportAPIObjectBase
