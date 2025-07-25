@@ -413,8 +413,8 @@ namespace duckdb
 
     const AirportSerializedFlightAppMetadata ParseFlightAppMetadata(const string &app_metadata, const string &server_location)
     {
-      AIRPORT_MSGPACK_UNPACK(AirportSerializedFlightAppMetadata,
-                             app_metadata_obj,
+      AirportSerializedFlightAppMetadata app_metadata_obj;
+      AIRPORT_MSGPACK_UNPACK(app_metadata_obj,
                              app_metadata,
                              server_location,
                              "Failed to parse Flight app_metadata");
@@ -506,7 +506,8 @@ namespace duckdb
       url_contents = get_response.second;
 
       // So this data has this layout
-      AIRPORT_MSGPACK_UNPACK(AirportSerializedCompressedContent, compressed_content, url_contents, server_location, "File to parse msgpack encoded object AirportSerializedCompressedContent");
+      AirportSerializedCompressedContent compressed_content;
+      AIRPORT_MSGPACK_UNPACK(compressed_content, url_contents, server_location, "File to parse msgpack encoded object AirportSerializedCompressedContent");
 
       auto decompressed_url_contents = decompressZStandard(compressed_content.data, compressed_content.length, server_location);
 
@@ -632,15 +633,16 @@ namespace duckdb
     }
 
     const auto &body_buffer = msgpack_serialized_response.get()->body;
-    AIRPORT_MSGPACK_UNPACK(AirportSerializedCompressedContent, compressed_content,
+    AirportSerializedCompressedContent compressed_content;
+    AIRPORT_MSGPACK_UNPACK(compressed_content,
                            (*body_buffer),
                            server_location,
                            "File to parse msgpack encoded object describing Arrow Flight schema data");
 
     auto decompressed_schema_data = decompressZStandard(compressed_content.data, compressed_content.length, server_location);
 
-    AIRPORT_MSGPACK_UNPACK(AirportSerializedCatalogRoot,
-                           catalog_root,
+    AirportSerializedCatalogRoot catalog_root;
+    AIRPORT_MSGPACK_UNPACK(catalog_root,
                            decompressed_schema_data,
                            server_location,
                            "Failed to unpack msgpack AirportSerializedCatalogRoot.");

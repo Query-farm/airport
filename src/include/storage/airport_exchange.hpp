@@ -134,7 +134,8 @@ namespace duckdb
       auto &last_app_metadata = bind_data.last_app_metadata;
       if (last_app_metadata)
       {
-        AIRPORT_MSGPACK_UNPACK(AirportChangedFinalMetadata, final_metadata,
+        AirportChangedFinalMetadata final_metadata;
+        AIRPORT_MSGPACK_UNPACK(final_metadata,
                                (*last_app_metadata),
                                server_location,
                                "Failed to parse msgpack encoded object for final update metadata.");

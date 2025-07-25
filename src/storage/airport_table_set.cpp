@@ -80,8 +80,10 @@ namespace duckdb
       auto check_constraints = schema_metadata.GetOption("check_constraints");
       if (!check_constraints.empty())
       {
+        AirportTableCheckConstraints table_constraints;
+
         AIRPORT_MSGPACK_UNPACK_CONTAINER(
-            AirportTableCheckConstraints, table_constraints,
+            table_constraints,
             check_constraints,
             (&location),
             "File to parse msgpack encoded table check constraints.");
@@ -276,8 +278,8 @@ namespace duckdb
       throw AirportFlightException(server_location, flight_info->descriptor(), "The app_metadata field of the flight is empty.", "");
     }
 
-    AIRPORT_MSGPACK_UNPACK(AirportSerializedFlightAppMetadata,
-                           app_metadata_obj,
+    AirportSerializedFlightAppMetadata app_metadata_obj;
+    AIRPORT_MSGPACK_UNPACK(app_metadata_obj,
                            flight_info->app_metadata(),
                            server_location,
                            "Failed to unpack flight's app_metadata");

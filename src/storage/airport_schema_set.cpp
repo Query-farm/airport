@@ -165,7 +165,8 @@ namespace duckdb
     }
 
     const auto &body_buffer = msgpack_serialized_response.get()->body;
-    AIRPORT_MSGPACK_UNPACK(AirportSerializedContentsWithSHA256Hash, contents,
+    AirportSerializedContentsWithSHA256Hash contents;
+    AIRPORT_MSGPACK_UNPACK(contents,
                            (*body_buffer),
                            server_location,
                            "File to parse msgpack encoded object from create_schema response");

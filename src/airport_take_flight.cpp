@@ -700,8 +700,8 @@ namespace duckdb
 
       std::string_view serialized_endpoint_info(reinterpret_cast<const char *>(serialized_endpoint_info_buffer->body->data()), serialized_endpoint_info_buffer->body->size());
 
-      AIRPORT_MSGPACK_UNPACK(std::vector<std::string>,
-                             serialized_endpoints,
+      std::vector<std::string> serialized_endpoints;
+      AIRPORT_MSGPACK_UNPACK(serialized_endpoints,
                              serialized_endpoint_info,
                              server_location,
                              "File to parse msgpack encoded endpoints");
@@ -864,11 +864,12 @@ namespace duckdb
       if (media_type == "application/x-msgpack-duckdb-function-call;base64")
       {
         // Now deal with the msgpack stuff.
-        AIRPORT_MSGPACK_UNPACK_CONTAINER(AirportDuckDBFunctionCall,
-                                         function_call_data,
-                                         decoded,
-                                         (&bind_data),
-                                         "File to parse msgpack encoded DuckDB function call");
+        AirportDuckDBFunctionCall function_call_data;
+        AIRPORT_MSGPACK_UNPACK_CONTAINER(
+            function_call_data,
+            decoded,
+            (&bind_data),
+            "File to parse msgpack encoded DuckDB function call");
 
         D_ASSERT(!function_call_data.function_name.empty());
         D_ASSERT(!function_call_data.data.empty());
@@ -892,8 +893,8 @@ namespace duckdb
       else
       {
         // Now deal with the msgpack stuff.
-        AIRPORT_MSGPACK_UNPACK(LocationDataContents,
-                               location_data,
+        LocationDataContents location_data;
+        AIRPORT_MSGPACK_UNPACK(location_data,
                                decoded,
                                server_location,
                                "File to parse msgpack encoded data uri");
