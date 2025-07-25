@@ -339,6 +339,11 @@ namespace duckdb
     returning_data_chunk.Verify();
 
     result.Reference(returning_data_chunk.data[0]);
+
+    if (output_size == 1)
+    {
+      result.SetVectorType(VectorType::CONSTANT_VECTOR);
+    }
   }
 
   // Lets work on initializing the local state
