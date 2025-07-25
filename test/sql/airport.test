@@ -458,6 +458,24 @@ select test1.utils.test_uppercase('test string');
 ----
 TEST STRING
 
+statement ok
+create table people_names(
+    name text
+);
+
+statement ok
+insert into people_names values ('Alice'), ('Bob'), ('Charlie'), ('Diana'), ('Eve'), ('Frank');
+
+query T
+select test1.utils.test_uppercase(name) from people_names
+----
+ALICE
+BOB
+CHARLIE
+DIANA
+EVE
+FRANK
+
 query I
 select test1.utils.test_add(5, 6);
 ----
