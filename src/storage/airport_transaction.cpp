@@ -51,11 +51,11 @@ namespace duckdb
 
     auto result_buffer = AirportCallAction(flight_client, call_options, action, server_location);
 
-    AIRPORT_MSGPACK_UNPACK(
-        GetTransactionIdentifierResult, result,
-        (*(result_buffer->body)),
-        server_location,
-        "File to parse msgpack encoded create_transaction response");
+    GetTransactionIdentifierResult result;
+    AIRPORT_MSGPACK_UNPACK(result,
+                           (*(result_buffer->body)),
+                           server_location,
+                           "File to parse msgpack encoded create_transaction response");
 
     return result.identifier;
   }

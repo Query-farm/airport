@@ -62,7 +62,8 @@ namespace duckdb
 
     auto serialized_catalog_version_buffer = AirportCallAction(flight_client_, call_options, action, server_location);
 
-    AIRPORT_MSGPACK_UNPACK(AirportGetCatalogVersionResult, result,
+    AirportGetCatalogVersionResult result;
+    AIRPORT_MSGPACK_UNPACK(result,
                            (*serialized_catalog_version_buffer->body),
                            server_location,
                            "File to parse msgpack encoded catalog_version response");

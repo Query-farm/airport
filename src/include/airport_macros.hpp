@@ -65,8 +65,8 @@ namespace duckdb
       auto status_detail = flight::FlightStatusDetail::UnwrapStatus(status);                                                 \
       if (status_detail != nullptr && !status_detail->extra_info().empty())                                                  \
       {                                                                                                                      \
+        AirportErrorExtraInfo extra_error_info;                                                                              \
         AIRPORT_MSGPACK_UNPACK(                                                                                              \
-            AirportErrorExtraInfo,                                                                                           \
             extra_error_info,                                                                                                \
             (status_detail->extra_info()),                                                                                   \
             location,                                                                                                        \
@@ -85,8 +85,8 @@ namespace duckdb
       auto status_detail = flight::FlightStatusDetail::UnwrapStatus(status);                               \
       if (status_detail != nullptr && !status_detail->extra_info().empty())                                \
       {                                                                                                    \
+        AirportErrorExtraInfo extra_error_info;                                                            \
         AIRPORT_MSGPACK_UNPACK(                                                                            \
-            AirportErrorExtraInfo,                                                                         \
             extra_error_info,                                                                              \
             (status_detail->extra_info()),                                                                 \
             location,                                                                                      \
@@ -113,24 +113,23 @@ namespace duckdb
 #define AIRPORT_ASSIGN_OR_RAISE_LOCATION(lhs, rexpr, location, message) \
   AIRPORT_ASSIGN_OR_RAISE_IMPL_LOCATION(ARROW_ASSIGN_OR_RAISE_NAME(_error_or_value, __COUNTER__), lhs, rexpr, location, message);
 
-#define AIRPORT_MSGPACK_UNPACK(destination_type, destination_name, source, location, message) \
-  destination_type destination_name;                                                          \
-  try                                                                                         \
-  {                                                                                           \
-    msgpack::object_handle oh = msgpack::unpack(                                              \
-        reinterpret_cast<const char *>(source.data()),                                        \
-        source.size(),                                                                        \
-        0);                                                                                   \
-    msgpack::object obj = oh.get();                                                           \
-    obj.convert(destination_name);                                                            \
-  }                                                                                           \
-  catch (const std::exception &e)                                                             \
-  {                                                                                           \
-    throw AirportFlightException(location, string(message) + " " + string(e.what()));         \
+#define AIRPORT_MSGPACK_UNPACK(destination_name, source, location, message)           \
+  try                                                                                 \
+  {                                                                                   \
+    msgpack::object_handle oh = msgpack::unpack(                                      \
+        reinterpret_cast<const char *>(source.data()),                                \
+        source.size(),                                                                \
+        0);                                                                           \
+    msgpack::object obj = oh.get();                                                   \
+    obj.convert(destination_name);                                                    \
+  }                                                                                   \
+  catch (const std::exception &e)                                                     \
+  {                                                                                   \
+    throw AirportFlightException(location, string(message) + " " + string(e.what())); \
   }
 
-#define AIRPORT_MSGPACK_UNPACK_CONTAINER(destination_type, destination_name, source, container, message) \
-  AIRPORT_MSGPACK_UNPACK(destination_type, destination_name, source, container->server_location(), message);
+#define AIRPORT_MSGPACK_UNPACK_CONTAINER(destination_name, source, container, message) \
+  AIRPORT_MSGPACK_UNPACK(destination_name, source, container->server_location(), message);
 
 #define AIRPORT_MSGPACK_ACTION_SINGLE_PARAMETER(result_name, action_name, parameters) \
   msgpack::sbuffer parameters_packed_buffer;                                          \

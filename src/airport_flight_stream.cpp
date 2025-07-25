@@ -487,8 +487,9 @@ namespace duckdb
       {
         try
         {
+          AirportScannerProgress progress_report;
+
           AIRPORT_MSGPACK_UNPACK_CONTAINER(
-              AirportScannerProgress,
               progress_report,
               (*app_metadata),
               this,
