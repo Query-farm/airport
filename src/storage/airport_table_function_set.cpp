@@ -317,7 +317,7 @@ namespace duckdb
 
   static ArrowSchemaTableFunctionTypes
   AirportSchemaToLogicalTypesWithNaming(
-      ClientContext &context,
+      DatabaseInstance &db,
       std::shared_ptr<arrow::Schema> schema,
       const AirportLocationDescriptor &location_descriptor)
   {
@@ -329,7 +329,7 @@ namespace duckdb
         "ExportSchema");
 
     ArrowSchemaTableFunctionTypes result;
-    auto &config = DBConfig::GetConfig(context);
+    auto &config = db.config;
     const idx_t column_count = (idx_t)schema_root.arrow_schema.n_children;
 
     result.all_names.reserve(column_count);
@@ -707,14 +707,14 @@ namespace duckdb
     return OperatorFinalizeResultType::FINISHED;
   }
 
-  void AirportTableFunctionSet::LoadEntries(ClientContext &context)
+  void AirportTableFunctionSet::LoadEntries(DatabaseInstance &db)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
     auto contents = AirportAPI::GetSchemaItems(
-        context,
+        db,
         catalog.GetDBPath(),
         schema.name,
         schema.serialized_source(),
@@ -741,7 +741,7 @@ namespace duckdb
         // schema that is returned likely should be requested dynamically from the dynamic
         // flight function.
 
-        auto input_types = AirportSchemaToLogicalTypesWithNaming(context, function.input_schema(), function);
+        auto input_types = AirportSchemaToLogicalTypesWithNaming(db, function.input_schema(), function);
 
         // Determine if we have a table input.
         bool has_table_input = false;

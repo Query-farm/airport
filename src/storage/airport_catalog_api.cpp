@@ -141,14 +141,14 @@ namespace duckdb
       return result;
     }
 
-    std::pair<HTTPStatusCode, std::string> GetRequest(ClientContext &context, const string &url, const string expected_sha256)
+    std::pair<HTTPStatusCode, std::string> GetRequest(DatabaseInstance &db, const string &url, const string expected_sha256)
     {
       HTTPHeaders headers;
 
-      auto &http_util = HTTPUtil::Get(*context.db);
+      auto &http_util = HTTPUtil::Get(db);
       unique_ptr<HTTPParams> params;
       auto target_url = string(url);
-      params = http_util.InitializeParameters(context, target_url);
+      params = http_util.InitializeParameters(db, target_url);
 
       GetRequestInfo get_request(target_url,
                                  headers,
@@ -208,7 +208,7 @@ namespace duckdb
   }
 
 #undef MoveFile
-  void AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(ClientContext &context,
+  void AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(DatabaseInstance &db,
                                                               const AirportSchemaCollection &collection,
                                                               const string &catalog_name,
                                                               const string &baseDir)
@@ -260,7 +260,7 @@ namespace duckdb
     else if (collection.source.url.has_value())
     {
       // How do we know if the URLs haven't already been populated.
-      auto get_result = GetRequest(context, collection.source.url.value(), collection.source.sha256);
+      auto get_result = GetRequest(db, collection.source.url.value(), collection.source.sha256);
 
       if (get_result.first != HTTPStatusCode::OK_200)
       {
@@ -330,7 +330,7 @@ namespace duckdb
   namespace
   {
     // Function to handle caching
-    std::pair<HTTPStatusCode, std::string> getCachedRequestData(ClientContext &context,
+    std::pair<HTTPStatusCode, std::string> getCachedRequestData(DatabaseInstance &db,
                                                                 const AirportSerializedContentsWithSHA256Hash &source,
                                                                 const string &baseDir)
     {
@@ -347,7 +347,7 @@ namespace duckdb
         }
         else if (source.url.has_value())
         {
-          return GetRequest(context, source.url.value(), source.sha256);
+          return GetRequest(db, source.url.value(), source.sha256);
         }
         else
         {
@@ -392,7 +392,7 @@ namespace duckdb
       // I know this doesn't work for zero byte cached responses, its okay.
 
       // Data not in cache, fetch it
-      auto get_result = GetRequest(context, source.url.value(), source.sha256);
+      auto get_result = GetRequest(db, source.url.value(), source.sha256);
 
       if (get_result.first != HTTPStatusCode::OK_200)
       {
@@ -474,7 +474,7 @@ namespace duckdb
   }
 
   unique_ptr<AirportSchemaContents>
-  AirportAPI::GetSchemaItems(ClientContext &context,
+  AirportAPI::GetSchemaItems(DatabaseInstance &db,
                              const string &catalog,
                              const string &schema,
                              const AirportSerializedContentsWithSHA256Hash &source,
@@ -498,7 +498,7 @@ namespace duckdb
         !source.sha256.empty())
     {
       string url_contents;
-      auto get_response = getCachedRequestData(context, source, cache_base_dir);
+      auto get_response = getCachedRequestData(db, source, cache_base_dir);
 
       if (get_response.first != HTTPStatusCode::OK_200)
       {
@@ -658,6 +658,7 @@ namespace duckdb
           schema.name,
           schema.description,
           schema.tags,
+          schema.is_default.value_or(false),
           schema.contents));
     }
 
