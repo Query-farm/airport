@@ -62,6 +62,57 @@ namespace duckdb
         function.named_parameters["auth_token"] = LogicalType::VARCHAR;
     }
 
+    struct ParsedURL
+    {
+        std::string location; // e.g. grpc+tls://hello-airport.query.farm
+        std::string path;     // e.g. hello (no leading /)
+        std::unordered_map<std::string, std::string> options;
+    };
+
+    static ParsedURL parse_url(const std::string &url)
+    {
+        ParsedURL result;
+
+        // Separate query string
+        size_t query_pos = url.find('?');
+        std::string base = (query_pos == std::string::npos) ? url : url.substr(0, query_pos);
+        std::string query = (query_pos == std::string::npos) ? "" : url.substr(query_pos + 1);
+
+        // Extract scheme and authority
+        size_t scheme_end = base.find("://");
+        if (scheme_end == std::string::npos)
+        {
+            throw std::runtime_error("Invalid URL: missing scheme");
+        }
+        size_t path_start = base.find('/', scheme_end + 3);
+        result.location = (path_start == std::string::npos) ? base : base.substr(0, path_start);
+
+        if (path_start != std::string::npos && path_start + 1 < base.size())
+        {
+            result.path = base.substr(path_start + 1); // skip leading '/'
+        }
+        else
+        {
+            result.path = ""; // no path
+        }
+
+        // Parse query into map
+        std::istringstream ss(query);
+        std::string token;
+        while (std::getline(ss, token, '&'))
+        {
+            size_t eq = token.find('=');
+            if (eq != std::string::npos)
+            {
+                std::string key = token.substr(0, eq);
+                std::string value = token.substr(eq + 1);
+                result.options[key] = value;
+            }
+        }
+
+        return result;
+    }
+
     static unique_ptr<Catalog> AirportCatalogAttach(StorageExtensionInfo *storage_info, ClientContext &context,
                                                     AttachedDatabase &db, const string &name, AttachInfo &info,
                                                     AccessMode access_mode)
@@ -69,6 +120,32 @@ namespace duckdb
         string secret_name;
         string auth_token;
         string location;
+
+        string db_name = info.path;
+
+        if (!info.path.empty())
+        {
+            auto parsed_url_result = parse_url(info.path);
+            db_name = parsed_url_result.path;
+            location = parsed_url_result.location;
+
+            for (auto &entry : parsed_url_result.options)
+            {
+                auto lower_name = StringUtil::Lower(entry.first);
+                if (lower_name == "secret")
+                {
+                    secret_name = entry.second;
+                }
+                else if (lower_name == "auth_token")
+                {
+                    auth_token = entry.second;
+                }
+                else
+                {
+                    throw BinderException("Unrecognized option for Airport ATTACH: %s", entry.first);
+                }
+            }
+        }
 
         // check if we have a secret provided
         for (auto &entry : info.options)
@@ -103,7 +180,11 @@ namespace duckdb
             throw BinderException("No location provided for Airport ATTACH.");
         }
 
+<<<<<<< HEAD
         return make_uniq<AirportCatalog>(db, info.path, access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
+=======
+        return make_uniq<AirportCatalog>(db, db_name, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
+>>>>>>> 04a15f4 (feat: add command line airport database URL handling)
     }
 
     static unique_ptr<TransactionManager> CreateTransactionManager(StorageExtensionInfo *storage_info, AttachedDatabase &db,
