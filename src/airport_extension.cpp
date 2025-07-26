@@ -180,11 +180,7 @@ namespace duckdb
             throw BinderException("No location provided for Airport ATTACH.");
         }
 
-<<<<<<< HEAD
-        return make_uniq<AirportCatalog>(db, info.path, access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
-=======
-        return make_uniq<AirportCatalog>(db, db_name, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
->>>>>>> 04a15f4 (feat: add command line airport database URL handling)
+        return make_uniq<AirportCatalog>(db, db_name, access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
     }
 
     static unique_ptr<TransactionManager> CreateTransactionManager(StorageExtensionInfo *storage_info, AttachedDatabase &db,
