@@ -32,7 +32,7 @@ namespace duckdb
     void AlterTable(ClientContext &context, AlterTableInfo &info);
 
   protected:
-    void LoadEntries(ClientContext &context) override;
+    void LoadEntries(DatabaseInstance &db) override;
   };
 
   class AirportTableEntry;

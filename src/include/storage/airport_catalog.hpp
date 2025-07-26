@@ -69,6 +69,8 @@ namespace duckdb
       return "airport";
     }
 
+    string GetDefaultSchema() const override;
+
     bool SupportsTimeTravel() const override
     {
       return true;
@@ -139,6 +141,6 @@ namespace duckdb
     std::shared_ptr<AirportAttachParameters> attach_parameters_;
     string internal_name_;
     AirportSchemaSet schemas;
-    string default_schema;
+    string default_schema_;
   };
 }

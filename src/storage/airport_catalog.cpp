@@ -26,6 +26,13 @@ namespace duckdb
         internal_name_(internal_name), schemas(*this)
   {
     flight_client_ = AirportAPI::FlightClientForLocation(this->attach_parameters_->location());
+
+    default_schema_ = schemas.GetDefaultSchema(this->db.GetDatabase());
+    if (default_schema_.empty())
+    {
+      // If we still don't have a default schema, return the default.
+      default_schema_ = DEFAULT_SCHEMA;
+    }
   }
 
   AirportCatalog::~AirportCatalog() = default;
@@ -73,6 +80,11 @@ namespace duckdb
     return result.catalog_version;
   }
 
+  string AirportCatalog::GetDefaultSchema() const
+  {
+    return default_schema_;
+  }
+
   optional_ptr<CatalogEntry> AirportCatalog::CreateSchema(CatalogTransaction transaction, CreateSchemaInfo &info)
   {
     if (info.on_conflict == OnCreateConflict::REPLACE_ON_CONFLICT)
@@ -97,7 +109,7 @@ namespace duckdb
     // If there is a contents_url for all schemas make sure it is present and decompressed on the disk, so that the
     // schema loaders will grab it.
 
-    schemas.LoadEntireSet(context);
+    schemas.LoadEntireSet(*context.db);
 
     schemas.Scan(context, [&](CatalogEntry &schema)
                  { callback(schema.Cast<AirportSchemaEntry>()); });

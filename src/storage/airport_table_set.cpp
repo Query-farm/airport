@@ -55,12 +55,12 @@ namespace duckdb
 
   void AirportArrowSchemaToCreateTableInfo(CreateTableInfo &info,
                                            std::shared_ptr<arrow::Schema> info_schema,
-                                           ClientContext &context,
+                                           DatabaseInstance &db,
                                            const std::string &table_name,
                                            AirportLocationDescriptor &location,
                                            LogicalType &rowid_type)
   {
-    auto &config = DBConfig::GetConfig(context);
+    auto &config = db.config;
 
     ArrowSchema arrow_schema;
 
@@ -90,7 +90,7 @@ namespace duckdb
 
         for (auto &expression : table_constraints.constraints)
         {
-          auto expression_list = Parser::ParseExpressionList(expression, context.GetParserOptions());
+          auto expression_list = Parser::ParseExpressionList(expression);
           if (expression_list.size() != 1)
           {
             throw ParserException("Failed to parse CHECK constraint expression: " + expression + " for table " + table_name);
@@ -187,13 +187,13 @@ namespace duckdb
     }
   }
 
-  void AirportTableSet::LoadEntries(ClientContext &context)
+  void AirportTableSet::LoadEntries(DatabaseInstance &db)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
     auto contents = AirportAPI::GetSchemaItems(
-        context,
+        db,
         catalog.GetDBPath(),
         schema.name,
         schema.serialized_source(),
@@ -211,7 +211,7 @@ namespace duckdb
       LogicalType rowid_type;
       AirportArrowSchemaToCreateTableInfo(info,
                                           table.schema(),
-                                          context,
+                                          db,
                                           table.name(),
                                           table,
                                           rowid_type);
@@ -306,7 +306,7 @@ namespace duckdb
 
     AirportArrowSchemaToCreateTableInfo(create_info,
                                         info_schema,
-                                        context,
+                                        *context.db,
                                         app_metadata_obj.name,
                                         table_location,
                                         rowid_type);

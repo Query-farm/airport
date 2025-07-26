@@ -49,7 +49,7 @@ namespace duckdb
 
   // Given an Arrow schema return a vector of the LogicalTypes for that schema.
   static vector<LogicalType> AirportSchemaToLogicalTypes(
-      ClientContext &context,
+      DatabaseInstance &db,
       std::shared_ptr<arrow::Schema> schema,
       const AirportLocationDescriptor &location_descriptor)
   {
@@ -61,7 +61,7 @@ namespace duckdb
         "ExportSchema");
 
     vector<LogicalType> return_types;
-    auto &config = DBConfig::GetConfig(context);
+    auto &config = db.config;
 
     const idx_t column_count = (idx_t)schema_root.arrow_schema.n_children;
 
@@ -101,7 +101,7 @@ namespace duckdb
     return return_types;
   }
 
-  void AirportScalarFunctionSet::LoadEntries(ClientContext &context)
+  void AirportScalarFunctionSet::LoadEntries(DatabaseInstance &db)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
 
@@ -109,7 +109,7 @@ namespace duckdb
 
     // TODO: handle out-of-order columns using position property
     auto contents = AirportAPI::GetSchemaItems(
-        context,
+        db,
         catalog.GetDBPath(),
         schema.name,
         schema.serialized_source(),
@@ -135,9 +135,9 @@ namespace duckdb
       // FIXME: need a way to specify the function stability.
       for (const auto &function : pair.second)
       {
-        auto input_types = AirportSchemaToLogicalTypes(context, function.input_schema(), function);
+        auto input_types = AirportSchemaToLogicalTypes(db, function.input_schema(), function);
 
-        auto output_types = AirportSchemaToLogicalTypes(context, function.schema(), function);
+        auto output_types = AirportSchemaToLogicalTypes(db, function.schema(), function);
         D_ASSERT(output_types.size() == 1);
 
         auto scalar_func = ScalarFunction(input_types, output_types[0],

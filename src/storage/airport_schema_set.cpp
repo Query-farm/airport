@@ -45,19 +45,34 @@ namespace duckdb
     return fs.JoinPath(home_directory, ".duckdb");
   }
 
-  void AirportSchemaSet::LoadEntireSet(ClientContext &context)
+  void AirportSchemaSet::LoadEntireSet(DatabaseInstance &db)
   {
     lock_guard<mutex> l(entry_lock);
 
     if (called_load_entries == false)
     {
       // We haven't called load entries yet.
-      LoadEntries(context);
+      LoadEntries(db);
       called_load_entries = true;
     }
   }
 
-  void AirportSchemaSet::LoadEntries(ClientContext &context)
+  static string AirportDuckDBHomeDirectory(DatabaseInstance &db)
+  {
+    auto &fs = db.GetFileSystem();
+
+    const string home_directory = fs.GetHomeDirectory();
+    // exception if the home directory does not exist, don't create whatever we think is home
+    if (!fs.DirectoryExists(home_directory))
+    {
+      throw IOException("Can't find the home directory at '%s'\nSpecify a home directory using the SET "
+                        "home_directory='/path/to/dir' option.",
+                        home_directory);
+    }
+    return fs.JoinPath(home_directory, ".duckdb");
+  }
+
+  void AirportSchemaSet::LoadEntries(DatabaseInstance &db)
   {
     if (called_load_entries)
     {
@@ -65,7 +80,7 @@ namespace duckdb
     }
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
-    const string cache_path = DuckDBHomeDirectory(context);
+    const string cache_path = AirportDuckDBHomeDirectory(db);
     const auto &catalog_name = airport_catalog.internal_name();
 
     auto returned_collection = AirportAPI::GetSchemas(
@@ -80,7 +95,7 @@ namespace duckdb
          collection->source.url.has_value()))
     {
       AirportAPI::PopulateCatalogSchemaCacheFromURLorContent(
-          context, *collection, catalog_name, cache_path);
+          db, *collection, catalog_name, cache_path);
     }
 
     populated_entire_set = true;
@@ -110,6 +125,11 @@ namespace duckdb
       for (const auto &[key, value] : schema.tags())
       {
         schema_entry->tags[key] = value;
+      }
+
+      if (schema.is_default() && default_schema_.empty())
+      {
+        default_schema_ = schema_name;
       }
 
       CreateEntry(std::move(schema_entry));
@@ -177,6 +197,7 @@ namespace duckdb
         info.schema,
         "",
         empty,
+        false,
         contents);
 
     string cache_path = DuckDBHomeDirectory(context);
@@ -184,6 +205,13 @@ namespace duckdb
     auto schema_entry = make_uniq<AirportSchemaEntry>(catalog, info, cache_path, real_entry);
 
     return CreateEntry(std::move(schema_entry));
+  }
+
+  std::string AirportSchemaSet::GetDefaultSchema(DatabaseInstance &db)
+  {
+    LoadEntireSet(db);
+
+    return default_schema_;
   }
 
 } // namespace duckdb

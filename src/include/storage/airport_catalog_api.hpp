@@ -55,7 +55,10 @@ namespace duckdb
     // The contents of the schema itself.
     AirportSerializedContentsWithSHA256Hash contents;
 
-    MSGPACK_DEFINE_MAP(name, description, tags, contents)
+    // Should this schema be considered the default schema
+    std::optional<bool> is_default;
+
+    MSGPACK_DEFINE_MAP(name, description, tags, contents, is_default)
   };
 
   struct AirportGetCatalogVersionResult
@@ -339,11 +342,13 @@ namespace duckdb
                               const string &schema_name,
                               const string &comment,
                               const unordered_map<string, string> &tags,
+                              const bool is_default,
                               const AirportSerializedContentsWithSHA256Hash &source)
         : catalog_name_(catalog_name),
           schema_name_(schema_name),
           comment_(comment),
           tags_(tags),
+          is_default_(is_default),
           source_(source)
     {
     }
@@ -373,11 +378,17 @@ namespace duckdb
       return source_;
     }
 
+    bool is_default() const
+    {
+      return is_default_;
+    }
+
   private:
     const string catalog_name_;
     const string schema_name_;
     const string comment_;
     const unordered_map<string, string> tags_;
+    const bool is_default_;
     const AirportSerializedContentsWithSHA256Hash source_;
   };
 
@@ -403,7 +414,7 @@ namespace duckdb
   {
   public:
     static vector<string> GetCatalogs(const string &catalog, AirportAttachParameters credentials);
-    static unique_ptr<AirportSchemaContents> GetSchemaItems(ClientContext &context,
+    static unique_ptr<AirportSchemaContents> GetSchemaItems(DatabaseInstance &db,
                                                             const string &catalog,
                                                             const string &schema,
                                                             const AirportSerializedContentsWithSHA256Hash &source,
@@ -412,7 +423,7 @@ namespace duckdb
     static unique_ptr<AirportSchemaCollection> GetSchemas(const string &catalog,
                                                           const std::shared_ptr<AirportAttachParameters> &credentials);
 
-    static void PopulateCatalogSchemaCacheFromURLorContent(ClientContext &context,
+    static void PopulateCatalogSchemaCacheFromURLorContent(DatabaseInstance &db,
                                                            const AirportSchemaCollection &collection,
                                                            const string &catalog_name,
                                                            const string &baseDir);
