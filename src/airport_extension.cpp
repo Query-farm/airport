@@ -120,7 +120,7 @@ namespace duckdb
 
         string db_name = info.path;
 
-        if (!info.path.empty())
+        if (!info.path.empty() && (info.path.compare(0, 7, "grpc://") == 0 || info.path.compare(0, 11, "grpc+tls://") == 0))
         {
             auto parsed_url_result = parse_url(info.path);
             db_name = parsed_url_result.path;
