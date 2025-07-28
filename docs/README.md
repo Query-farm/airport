@@ -47,6 +47,19 @@ brew install bison cmake llvm
 export CXX=/opt/homebrew/opt/llvm/bin/clang++
 ```
 
+If you are building against the `main` branch of DuckDB you need to be aware that.  Airport now relies on the `httpfs` extension for HTTPS support. Although it builds `httpfs`, it doesn’t link it automatically. As a result, during development, you’ll need to manually copy the built `httpfs` extension into your local DuckDB extension directory—usually `~/.duckdb/extensions/`.
+
+The following script will copy the necessary extensions to the correct location:
+
+```sh
+#!/bin/sh
+platform=$(duckdb -noheader -csv -c "pragma platform")
+snapshot=$(basename ./build/debug/repository/*)
+mkdir -p ~/.duckdb/extensions/$snapshot/$platform/
+cp -r ./build/debug/repository/$snapshot ~/.duckdb/extensions/$snapshot
+```
+
+
 ## Running the extension
 
 To run the extension code, simply start the shell with `./build/release/duckdb`. This duckdb shell will have the extension pre-loaded.
