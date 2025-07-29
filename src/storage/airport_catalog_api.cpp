@@ -86,7 +86,12 @@ namespace duckdb
       }
       auto file_size = handle->GetFileSize();
       string read_buffer = string(file_size, '\0');
-      handle->Read((void *)read_buffer.data(), file_size);
+      size_t bytes_read = 0;
+      while (bytes_read != file_size)
+      {
+        auto read_bytes = handle->Read((char *)read_buffer.data() + bytes_read, file_size - bytes_read);
+        bytes_read += read_bytes;
+      }
       return read_buffer;
     }
   }
