@@ -434,7 +434,7 @@ namespace duckdb
                                                optional_ptr<PhysicalOperator> plan)
   {
 
-    if (op.action_type != OnConflictAction::THROW)
+    if (op.on_conflict_info.action_type != OnConflictAction::THROW)
     {
       throw BinderException("ON CONFLICT clause not yet supported for insertion into Airport table");
     }
@@ -446,16 +446,16 @@ namespace duckdb
         op.table,
         std::move(op.bound_constraints),
         std::move(op.expressions),
-        std::move(op.set_columns),
-        std::move(op.set_types),
+        std::move(op.on_conflict_info.set_columns),
+        std::move(op.on_conflict_info.set_types),
         op.column_index_map,
         op.estimated_cardinality,
         op.return_chunk,
-        op.action_type,
-        std::move(op.on_conflict_condition),
-        std::move(op.do_update_condition),
-        std::move(op.on_conflict_filter),
-        std::move(op.columns_to_fetch),
+        op.on_conflict_info.action_type,
+        std::move(op.on_conflict_info.on_conflict_condition),
+        std::move(op.on_conflict_info.do_update_condition),
+        std::move(op.on_conflict_info.on_conflict_filter),
+        std::move(op.on_conflict_info.columns_to_fetch),
         std::move(op.bound_defaults));
 
     if (plan)
