@@ -245,7 +245,7 @@ namespace duckdb
     case LogicalTypeId::TIME_TZ:
     case LogicalTypeId::TIME_NS:
     case LogicalTypeId::DECIMAL:
-    case LogicalTypeId::VARINT:
+    case LogicalTypeId::BIGNUM:
 
     {
       auto r = NumericStats::CreateEmpty(duck_type);
