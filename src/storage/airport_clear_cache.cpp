@@ -27,8 +27,7 @@ namespace duckdb
     auto databases = DatabaseManager::Get(context).GetDatabases(context);
     for (auto &db_ref : databases)
     {
-      auto &db = db_ref.get();
-      auto &catalog = db.GetCatalog();
+      auto &catalog = db_ref->GetCatalog();
       if (catalog.GetCatalogType() != "airport")
       {
         continue;

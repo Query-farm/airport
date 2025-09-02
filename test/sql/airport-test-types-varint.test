@@ -1,4 +1,4 @@
-# name: test/sql/airport-test-types-varint.test
+# name: test/sql/airport-test-types-bignum.test
 # description: test airport with all data types
 # group: [airport]
 
@@ -36,23 +36,23 @@ statement ok
 use test1.test_non_predicate;
 
 statement ok
-create table test_type_varint (v varint);
+create table test_type_bignum (v bignum);
 
 statement ok
-insert into test_type_varint values (null);
+insert into test_type_bignum values (null);
 
 statement ok
-insert into test_type_varint values (1234567890123456789);
+insert into test_type_bignum values (1234567890123456789);
 
 
 query I
-select * from test_type_varint order by 1
+select * from test_type_bignum order by 1
 ----
 1234567890123456789
 NULL
 
 query I
-select v from test_type_varint where v = 1234567890123456789;
+select v from test_type_bignum where v = 1234567890123456789;
 ----
 1234567890123456789
 
@@ -64,23 +64,23 @@ statement ok
 use test1.test_predicate_pushdown;
 
 statement ok
-create table test_type_varint (v varint);
+create table test_type_bignum (v bignum);
 
 statement ok
-insert into test_type_varint values (null);
+insert into test_type_bignum values (null);
 
 statement ok
-insert into test_type_varint values (1234567890123456789);
+insert into test_type_bignum values (1234567890123456789);
 
 
 query I
-select * from test_type_varint order by 1
+select * from test_type_bignum order by 1
 ----
 1234567890123456789
 NULL
 
 query I
-select v from test_type_varint where v = 1234567890123456789;
+select v from test_type_bignum where v = 1234567890123456789;
 ----
 1234567890123456789
 
