@@ -12,6 +12,9 @@
       "name": "openssl"
     },
     {
+      "name": "curl"
+    },
+    {
       "name": "arrow",
       "default-features": false,
       "features": [
