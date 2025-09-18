@@ -286,8 +286,8 @@ namespace duckdb
         auto user_agent = airport_user_agent();
         auto platform = DuckDB::Platform();
         yyjson_mut_obj_add_str(doc, result_obj, "extension_name", "airport");
-        yyjson_mut_obj_add_str(doc, result_obj, "airport_version", AIRPORT_EXTENSION_VERSION);
-        yyjson_mut_obj_add_str(doc, result_obj, "airport_user_agent", user_agent.c_str());
+        yyjson_mut_obj_add_str(doc, result_obj, "extension_version", AIRPORT_EXTENSION_VERSION);
+        yyjson_mut_obj_add_str(doc, result_obj, "user_agent", user_agent.c_str());
         yyjson_mut_obj_add_str(doc, result_obj, "duckdb_platform", platform.c_str());
         yyjson_mut_obj_add_str(doc, result_obj, "duckdb_library_version", DuckDB::LibraryVersion());
         yyjson_mut_obj_add_str(doc, result_obj, "duckdb_release_codename", DuckDB::ReleaseCodename());
