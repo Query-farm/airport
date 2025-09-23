@@ -18,7 +18,7 @@ jobs:
     name: Build extension binaries
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@main
     with:
-      duckdb_version: main
+      duckdb_version: v1.4-andium
       extension_name: airport
       ci_tools_version: main
       extra_toolchains: parser_tools
@@ -43,7 +43,7 @@ jobs:
   #   uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@main
   #   secrets: inherit
   #   with:
-  #     duckdb_version: main
+  #     duckdb_version: v1.4-andium
   #     extension_name: airport
   #     ci_tools_version: main
   #     deploy_latest: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' }}
