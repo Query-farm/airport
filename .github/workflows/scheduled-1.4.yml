@@ -1,0 +1,27 @@
+name: Scheduled Trigger for 1.4
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Runs at 12:00 UTC every day
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write  # Allow triggering workflows
+    steps:
+      - name: Checkout repository  # Required for gh to work
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update && sudo apt install gh -y
+
+      - name: Authenticate GH CLI
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Trigger Workflow on my-branch
+        run: |
+          gh workflow run MainDistributionPipeline.yml --ref v1.4
