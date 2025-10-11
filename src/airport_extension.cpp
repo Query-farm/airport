@@ -13,11 +13,11 @@
 #include "airport_optimizer.hpp"
 #include "airport_scalar_function.hpp"
 #include "airport_json_common.hpp"
-#include "airport_telemetry.hpp"
 #include "duckdb/main/extension_helper.hpp"
 #include "airport_logging.hpp"
+#include "query_farm_telemetry.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "20250723.01"
+#define AIRPORT_EXTENSION_VERSION "2025101101"
 
 namespace duckdb
 {
@@ -274,42 +274,6 @@ namespace duckdb
             named_params);
     }
 
-    static void SendTelemetry(shared_ptr<DatabaseInstance> db)
-    {
-
-        // Initialize the telemetry sender
-        auto doc = yyjson_mut_doc_new(nullptr);
-
-        auto result_obj = yyjson_mut_obj(doc);
-        yyjson_mut_doc_set_root(doc, result_obj);
-
-        auto user_agent = airport_user_agent();
-        auto platform = DuckDB::Platform();
-        yyjson_mut_obj_add_str(doc, result_obj, "extension_name", "airport");
-        yyjson_mut_obj_add_str(doc, result_obj, "extension_version", AIRPORT_EXTENSION_VERSION);
-        yyjson_mut_obj_add_str(doc, result_obj, "user_agent", user_agent.c_str());
-        yyjson_mut_obj_add_str(doc, result_obj, "duckdb_platform", platform.c_str());
-        yyjson_mut_obj_add_str(doc, result_obj, "duckdb_library_version", DuckDB::LibraryVersion());
-        yyjson_mut_obj_add_str(doc, result_obj, "duckdb_release_codename", DuckDB::ReleaseCodename());
-        yyjson_mut_obj_add_str(doc, result_obj, "duckdb_source_id", DuckDB::SourceID());
-
-        size_t telemetry_len;
-        auto telemetry_data = yyjson_mut_val_write_opts(
-            result_obj,
-            AirportJSONCommon::WRITE_FLAG,
-            NULL, &telemetry_len, nullptr);
-
-        if (telemetry_data == nullptr)
-        {
-            throw SerializationException("Failed to serialize telemetry data.");
-        }
-
-        auto telemetry_string = string(telemetry_data, (size_t)telemetry_len);
-
-        // Send request asynchronously
-        AirportTelemetrySender::sendRequestAsync(db, telemetry_string);
-    }
-
     static void LoadInternal(ExtensionLoader &loader)
     {
         ExtensionHelper::AutoLoadExtension(loader.GetDatabaseInstance(), "httpfs");
@@ -350,7 +314,7 @@ namespace duckdb
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
         log_manager.RegisterLogType(make_uniq<AirportLogType>());
 
-        SendTelemetry(loader.GetDatabaseInstance().shared_from_this());
+        QueryFarmSendTelemetry(loader, "bitfilters", AIRPORT_EXTENSION_VERSION);
     }
 
     void AirportExtension::Load(ExtensionLoader &loader)
