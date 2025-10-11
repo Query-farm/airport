@@ -1,4 +1,4 @@
-name: Scheduled Trigger for 1.3
+name: Scheduled Trigger for 1.4
 
 on:
   schedule:
@@ -24,4 +24,4 @@ jobs:
 
       - name: Trigger Workflow on my-branch
         run: |
-          gh workflow run MainDistributionPipeline.yml --ref v1.3
+          gh workflow run MainDistributionPipeline.yml --ref v1.4
