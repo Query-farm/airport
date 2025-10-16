@@ -34,11 +34,11 @@ namespace duckdb
     explicit AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const string &status, const string &msg);
     explicit AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg);
     explicit AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg, const unordered_map<string, string> &extra_info);
-    explicit AirportFlightException(ExceptionType exception_type, const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg) : Exception(exception_type, produce_flight_error_message(location, descriptor, status, msg), extract_extra_info(status, {}))
+    explicit AirportFlightException(ExceptionType exception_type, const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg) : Exception(extract_extra_info(status, {}), exception_type, produce_flight_error_message(location, descriptor, status, msg))
     {
     }
 
-    explicit AirportFlightException(ExceptionType exception_type, const string &location, const arrow::Status &status, const string &msg) : Exception(exception_type, produce_flight_error_message(location, status, msg), extract_extra_info(status, {}))
+    explicit AirportFlightException(ExceptionType exception_type, const string &location, const arrow::Status &status, const string &msg) : Exception(extract_extra_info(status, {}), exception_type, produce_flight_error_message(location, status, msg))
     {
     }
   };
