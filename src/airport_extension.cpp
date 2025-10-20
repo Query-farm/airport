@@ -314,7 +314,7 @@ namespace duckdb
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
         log_manager.RegisterLogType(make_uniq<AirportLogType>());
 
-        QueryFarmSendTelemetry(loader, "bitfilters", AIRPORT_EXTENSION_VERSION);
+        QueryFarmSendTelemetry(loader, "airport", AIRPORT_EXTENSION_VERSION);
     }
 
     void AirportExtension::Load(ExtensionLoader &loader)
@@ -328,7 +328,7 @@ namespace duckdb
 
     std::string AirportExtension::Version() const
     {
-        return "user-agent=" + airport_user_agent() + ",client=" + AIRPORT_EXTENSION_VERSION;
+        return StringUtil::Format("user-agent=%s,client=%s", airport_user_agent(), AIRPORT_EXTENSION_VERSION);
     }
 
 } // namespace duckdb
