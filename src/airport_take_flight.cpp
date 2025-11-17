@@ -503,7 +503,7 @@ namespace duckdb
       return make_uniq<NodeStatistics>(flight_estimated_records);
     }
     // If we don't have an estimated number of records, just use an assumption.
-    return make_uniq<NodeStatistics>(100000);
+    return make_uniq<NodeStatistics>();
   }
 
   void AirportTakeFlightComplexFilterPushdown(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
