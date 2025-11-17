@@ -405,7 +405,6 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           state.all_columns,
-                                          0,
                                           false,
                                           airport_bind_data.rowid_column_index);
       }
@@ -419,7 +418,6 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           output,
-                                          0,
                                           false,
                                           airport_bind_data.rowid_column_index);
       }

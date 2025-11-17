@@ -156,7 +156,6 @@ namespace duckdb
     ArrowTableFunction::ArrowToDuckDB(fake_local_state,
                                       arrow_table.GetColumns(),
                                       args_and_parameters_chunk,
-                                      0,
                                       false);
 
     args_and_parameters_chunk.Verify();
