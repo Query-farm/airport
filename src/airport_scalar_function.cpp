@@ -333,7 +333,6 @@ namespace duckdb
     ArrowTableFunction::ArrowToDuckDB(*(scan_local_state_.get()),
                                       scan_bind_data_->arrow_table.GetColumns(),
                                       returning_data_chunk,
-                                      0,
                                       false);
 
     returning_data_chunk.Verify();
