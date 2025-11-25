@@ -158,8 +158,8 @@ namespace duckdb
   //===--------------------------------------------------------------------===//
   // GetData
   //===--------------------------------------------------------------------===//
-  SourceResultType AirportUpdateParameterized::GetData(ExecutionContext &context, DataChunk &chunk,
-                                                       OperatorSourceInput &input) const
+  SourceResultType AirportUpdateParameterized::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
+                                                               OperatorSourceInput &input) const
   {
     auto &insert_gstate = sink_state->Cast<AirportUpdateParameterizedGlobalState>();
     chunk.SetCardinality(1);

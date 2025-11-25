@@ -20,7 +20,7 @@ namespace duckdb
     }
 
     // Source interface
-    SourceResultType GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
+    SourceResultType GetDataInternal(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
 
   public:
     // Sink interface

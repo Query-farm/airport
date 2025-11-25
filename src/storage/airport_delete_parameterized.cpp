@@ -119,8 +119,8 @@ namespace duckdb
   //===--------------------------------------------------------------------===//
   // GetData
   //===--------------------------------------------------------------------===//
-  SourceResultType AirportDeleteParameterized::GetData(ExecutionContext &context, DataChunk &chunk,
-                                                       OperatorSourceInput &input) const
+  SourceResultType AirportDeleteParameterized::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
+                                                               OperatorSourceInput &input) const
   {
     auto &insert_gstate = sink_state->Cast<AirportDeleteParameterizedGlobalState>();
     chunk.SetCardinality(1);

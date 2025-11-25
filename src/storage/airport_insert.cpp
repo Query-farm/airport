@@ -396,8 +396,8 @@ namespace duckdb
   //===--------------------------------------------------------------------===//
   // GetData
   //===--------------------------------------------------------------------===//
-  SourceResultType AirportInsert::GetData(ExecutionContext &context, DataChunk &chunk,
-                                          OperatorSourceInput &input) const
+  SourceResultType AirportInsert::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
+                                                  OperatorSourceInput &input) const
   {
     auto &state = input.global_state.Cast<AirportInsertSourceState>();
     auto &g = sink_state->Cast<AirportInsertGlobalState>();
