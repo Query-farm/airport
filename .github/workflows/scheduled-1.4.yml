@@ -2,16 +2,16 @@ name: Scheduled Trigger for 1.4
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # Runs at 12:00 UTC every day
-  workflow_dispatch:  # Allows manual trigger
+    - cron: "37 14 * * 1-5" # Runs at 12:00 UTC every day
+  workflow_dispatch: # Allows manual trigger
 
 jobs:
   trigger:
     runs-on: ubuntu-latest
     permissions:
-      actions: write  # Allow triggering workflows
+      actions: write # Allow triggering workflows
     steps:
-      - name: Checkout repository  # Required for gh to work
+      - name: Checkout repository # Required for gh to work
         uses: actions/checkout@v4
 
       - name: Install GitHub CLI
