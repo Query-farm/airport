@@ -47,7 +47,7 @@ namespace duckdb
     {
     }
 
-    const size_t total_endpoints() const
+    size_t total_endpoints() const
     {
       return endpoints_.size();
     }

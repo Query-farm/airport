@@ -52,7 +52,7 @@ namespace duckdb
       return function_name_;
     }
 
-    const bool input_schema_includes_any_types() const
+    bool input_schema_includes_any_types() const
     {
       for (int i = 0; i < input_schema_->num_fields(); ++i)
       {

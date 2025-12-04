@@ -517,12 +517,19 @@ namespace duckdb
 
       auto decompressed_url_contents = decompressZStandard(compressed_content.data, compressed_content.length, server_location);
 
-      msgpack::object_handle oh = msgpack::unpack(
-          reinterpret_cast<const char *>(decompressed_url_contents.data()),
-          compressed_content.length,
-          0);
-      // FIXME: put this in the try/catch block since it could fail.
-      std::vector<std::string> unpacked_data = oh.get().as<std::vector<std::string>>();
+      std::vector<std::string> unpacked_data;
+      try
+      {
+        msgpack::object_handle oh = msgpack::unpack(
+            reinterpret_cast<const char *>(decompressed_url_contents.data()),
+            compressed_content.length,
+            0);
+        unpacked_data = oh.get().as<std::vector<std::string>>();
+      }
+      catch (const std::exception &e)
+      {
+        throw AirportFlightException(server_location, "Failed to parse msgpack encoded schema items: " + string(e.what()));
+      }
 
       for (auto item : unpacked_data)
       {
