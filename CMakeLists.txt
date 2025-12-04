@@ -13,6 +13,13 @@ find_package(msgpack-cxx CONFIG REQUIRED)
 project(${TARGET_NAME})
 include_directories(src/include)
 
+# Enable compiler warnings for better code quality
+if(NOT MSVC)
+  add_compile_options(-Wall -Wextra -Wpedantic -Wno-unused-parameter)
+else()
+  add_compile_options(/W4)
+endif()
+
 set(EXTENSION_SOURCES
   src/airport_flight_exception.cpp
   src/airport_extension.cpp

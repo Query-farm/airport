@@ -377,7 +377,7 @@ namespace duckdb
       return trace_id_;
     }
 
-    const int64_t estimated_records() const
+    int64_t estimated_records() const
     {
       return estimated_records_;
     }

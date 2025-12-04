@@ -125,7 +125,7 @@ namespace duckdb
     AirportArrowTableSchema arrow_table;
     std::unordered_map<std::string, idx_t> name_indexes;
 
-    for (idx_t col_index = 0; col_index < schema_root.arrow_schema.n_children; col_index++)
+    for (auto col_index = 0; col_index < schema_root.arrow_schema.n_children; col_index++)
     {
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
 
