@@ -265,6 +265,10 @@ namespace duckdb
 
     AirportTakeFlightParameters params(info->server_location(), context, input);
 
+    // Set the catalog name from the table entry's catalog.
+    auto &airport_catalog = table_entry->GetCatalog().Cast<AirportCatalog>();
+    params.set_catalog_name(airport_catalog.internal_name());
+
     // The transaction identifier is passed as the 2nd argument.
     if (!input.inputs[2].IsNull())
     {
