@@ -66,8 +66,11 @@ namespace duckdb
 
     auto trace_uuid = airport_trace_id();
 
+    auto &airport_catalog = airport_table.GetCatalog().Cast<AirportCatalog>();
+
     arrow::flight::FlightCallOptions call_options;
     airport_add_standard_headers(call_options, server_location);
+    airport_add_catalog_header(call_options, airport_catalog.internal_name());
     airport_add_authorization_header(call_options, auth_token);
     airport_add_trace_id_header(call_options, trace_uuid);
 

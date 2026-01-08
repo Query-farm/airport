@@ -77,8 +77,8 @@ Configured via `CMakeLists.txt`:
 ## Attach Syntax
 
 ```sql
-ATTACH 'grpc+tls://server.example.com/database_name' AS db (TYPE airport);
-ATTACH 'grpc://localhost:8815/mydb' AS local (TYPE airport, auth_token='xxx');
+ATTACH '' AS db (TYPE airport, LOCATION 'grpc+tls://server.example.com/database_name');
+ATTACH '' AS local (TYPE airport, LOCATION 'grpc://localhost:8815/mydb', auth_token='xxx');
 ```
 
 ## Test Files
