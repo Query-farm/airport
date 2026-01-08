@@ -555,6 +555,7 @@ namespace duckdb
       // We need to load the contents of the schemas by listing the flights.
       arrow::flight::FlightCallOptions call_options;
       airport_add_standard_headers(call_options, credentials->location());
+      airport_add_catalog_header(call_options, catalog);
       call_options.headers.emplace_back("airport-list-flights-filter-catalog", catalog);
       call_options.headers.emplace_back("airport-list-flights-filter-schema", schema);
 
@@ -622,6 +623,7 @@ namespace duckdb
     auto result = make_uniq<AirportSchemaCollection>();
     arrow::flight::FlightCallOptions call_options;
     airport_add_standard_headers(call_options, credentials->location());
+    airport_add_catalog_header(call_options, catalog_name);
     airport_add_authorization_header(call_options, credentials->auth_token());
 
     auto flight_client = FlightClientForLocation(credentials->location());

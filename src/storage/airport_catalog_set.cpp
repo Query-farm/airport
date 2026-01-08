@@ -58,6 +58,7 @@ namespace duckdb
     arrow::flight::FlightCallOptions call_options;
 
     airport_add_standard_headers(call_options, airport_catalog.attach_parameters()->location());
+    airport_add_catalog_header(call_options, airport_catalog.internal_name());
     airport_add_authorization_header(call_options, airport_catalog.attach_parameters()->auth_token());
 
     auto flight_client = AirportAPI::FlightClientForLocation(airport_catalog.attach_parameters()->location());

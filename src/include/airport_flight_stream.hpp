@@ -154,6 +154,16 @@ namespace duckdb
       return user_supplied_headers_;
     }
 
+    const string &catalog_name() const noexcept
+    {
+      return catalog_name_;
+    }
+
+    void set_catalog_name(const string &catalog_name)
+    {
+      catalog_name_ = catalog_name;
+    }
+
     void add_header(const string &key, const string &value)
     {
       user_supplied_headers_[key].push_back({value});
@@ -161,6 +171,7 @@ namespace duckdb
 
   private:
     const string server_location_;
+    string catalog_name_;
     string auth_token_;
     string secret_name_;
     // Override the ticket supplied from GetFlightInfo.
