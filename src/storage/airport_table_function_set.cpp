@@ -296,6 +296,7 @@ namespace duckdb
     auto params = AirportTakeFlightParameters(function_info.function->server_location(),
                                               context,
                                               input);
+    params.set_catalog_name(function_info.function->catalog_name());
 
     return AirportTakeFlightBindWithFlightDescriptor(
         params,
@@ -698,7 +699,7 @@ namespace duckdb
         global_state.continuing_current_chunk = true;
         return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
       }
-      D_ASSERT(last_app_metadata && last_app_metadata->Equals(chunk_finished_buffer));
+      D_ASSERT(!last_app_metadata || last_app_metadata->Equals(chunk_finished_buffer));
     }
 
     global_state.continuing_current_chunk = false;

@@ -16,6 +16,7 @@
 #include "airport_location_descriptor.hpp"
 #include "airport_schema_utils.hpp"
 #include "storage/airport_transaction.hpp"
+#include "storage/airport_catalog.hpp"
 #include <numeric>
 
 namespace duckdb
@@ -36,7 +37,8 @@ namespace duckdb
                                                const AirportLocationDescriptor &location_descriptor,
                                                const std::shared_ptr<arrow::Schema> &function_output_schema,
                                                const std::shared_ptr<arrow::Schema> &function_input_schema,
-                                               const std::optional<std::string> &transaction_id)
+                                               const std::optional<std::string> &transaction_id,
+                                               const std::string &catalog_name)
           : AirportLocationDescriptor(location_descriptor),
             function_output_schema_(function_output_schema),
             function_input_schema_(function_input_schema),
@@ -59,6 +61,7 @@ namespace duckdb
         // but since scalar functions are defined by the server, just assume the user
         // has the token persisted in their secret store.
         airport_add_standard_headers(call_options, server_location);
+        airport_add_catalog_header(call_options, catalog_name);
         airport_add_authorization_header(call_options, auth_token);
         airport_add_trace_id_header(call_options, trace_id);
 
@@ -352,6 +355,7 @@ namespace duckdb
     auto &data = bind_data->Cast<AirportScalarFunctionBindData>();
 
     auto &transaction = AirportTransaction::Get(state.GetContext(), info.catalog());
+    auto &airport_catalog = info.catalog().Cast<AirportCatalog>();
 
     return make_uniq<AirportScalarFunctionLocalState>(
         state.GetContext(),
@@ -359,6 +363,7 @@ namespace duckdb
         info.output_schema(),
         // Use this schema that should have the proper types for the any columns.
         data.input_schema(),
-        transaction.identifier());
+        transaction.identifier(),
+        airport_catalog.internal_name());
   }
 }
