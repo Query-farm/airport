@@ -52,20 +52,15 @@ namespace duckdb
 			return;
 		}
 
-		auto &dbconfig = DBConfig::GetConfig(loader.GetDatabaseInstance());
-		auto old_value = dbconfig.options.autoinstall_known_extensions;
-		dbconfig.options.autoinstall_known_extensions = false;
 		try
 		{
-			ExtensionHelper::AutoLoadExtension(loader.GetDatabaseInstance(), "httpfs");
+			ExtensionHelper::TryAutoLoadExtension(loader.GetDatabaseInstance(), "httpfs");
 		}
 		catch (...)
 		{
-			dbconfig.options.autoinstall_known_extensions = old_value;
 			return;
 		}
 
-		dbconfig.options.autoinstall_known_extensions = old_value;
 		if (!loader.GetDatabaseInstance().ExtensionIsLoaded("httpfs"))
 		{
 			return;
@@ -81,7 +76,7 @@ namespace duckdb
 
 		yyjson_mut_obj_add_str(doc, result_obj, "extension_name", extension_name.c_str());
 		yyjson_mut_obj_add_str(doc, result_obj, "extension_version", extension_version.c_str());
-		yyjson_mut_obj_add_str(doc, result_obj, "user_agent", "query-farm/20251011");
+		yyjson_mut_obj_add_str(doc, result_obj, "user_agent", "query-farm/20260201");
 		yyjson_mut_obj_add_str(doc, result_obj, "duckdb_platform", platform.c_str());
 		yyjson_mut_obj_add_str(doc, result_obj, "duckdb_library_version", DuckDB::LibraryVersion());
 		yyjson_mut_obj_add_str(doc, result_obj, "duckdb_release_codename", DuckDB::ReleaseCodename());
