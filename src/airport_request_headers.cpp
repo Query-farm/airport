@@ -76,12 +76,22 @@ namespace duckdb
     options.headers.emplace_back("airport-trace-id", trace_id);
   }
 
+  void airport_add_catalog_header(arrow::flight::FlightCallOptions &options,
+                                  const std::string &catalog_name) noexcept
+  {
+    if (!catalog_name.empty())
+    {
+      options.headers.emplace_back("airport-catalog", catalog_name);
+    }
+  }
+
   void airport_add_normal_headers(arrow::flight::FlightCallOptions &options,
                                   const AirportTakeFlightParameters &params,
                                   const string &trace_id,
                                   const std::optional<arrow::flight::FlightDescriptor> &descriptor)
   {
     airport_add_standard_headers(options, params.server_location());
+    airport_add_catalog_header(options, params.catalog_name());
     airport_add_authorization_header(options, params.auth_token());
     airport_add_trace_id_header(options, trace_id);
 
