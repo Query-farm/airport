@@ -75,7 +75,6 @@ namespace duckdb
   {
   public:
     AirportDeleteLocalState(ClientContext &context, TableCatalogEntry &table)
-    //                            const vector<unique_ptr<BoundConstraint>> &bound_constraints)
     {
       delete_chunk.Initialize(Allocator::Get(context), table.GetTypes());
     }
@@ -112,7 +111,10 @@ namespace duckdb
   {
     auto &airport_table = table.Cast<AirportTableEntry>();
 
-    auto delete_global_state = make_uniq<AirportDeleteGlobalState>(context, airport_table, GetTypes(), return_chunk);
+    // Use table types (not GetTypes()) for return_collection because the server
+    // may or may not return virtual columns (like rowid), and
+    // LogicalDelete::ResolveTypes() appends virtual columns to the operator types.
+    auto delete_global_state = make_uniq<AirportDeleteGlobalState>(context, airport_table, table.GetTypes(), return_chunk);
 
     auto &transaction = AirportTransaction::Get(context, table.catalog);
 
@@ -267,9 +269,40 @@ namespace duckdb
       return SourceResultType::FINISHED;
     }
 
-    g.return_collection.Scan(state.scan_state, chunk);
+    // The return_collection may or may not contain rowid columns depending on
+    // the external Airport service. If column counts match, scan directly.
+    // Otherwise the output chunk includes additional virtual columns appended
+    // by LogicalDelete::ResolveTypes() — scan into a temporary chunk and project.
+    if (g.return_collection.ColumnCount() == chunk.ColumnCount())
+    {
+      g.return_collection.Scan(state.scan_state, chunk);
+      return chunk.size() == 0 ? SourceResultType::FINISHED : SourceResultType::HAVE_MORE_OUTPUT;
+    }
 
-    return chunk.size() == 0 ? SourceResultType::FINISHED : SourceResultType::HAVE_MORE_OUTPUT;
+    DataChunk scan_chunk;
+    scan_chunk.Initialize(Allocator::Get(context.client), g.return_collection.Types());
+    g.return_collection.Scan(state.scan_state, scan_chunk);
+
+    if (scan_chunk.size() == 0)
+    {
+      return SourceResultType::FINISHED;
+    }
+
+    auto collection_column_count = g.return_collection.ColumnCount();
+    chunk.SetCardinality(scan_chunk.size());
+    // Copy collection columns.
+    for (idx_t i = 0; i < collection_column_count; i++)
+    {
+      chunk.data[i].Reference(scan_chunk.data[i]);
+    }
+    // Set any remaining virtual columns to NULL.
+    for (idx_t i = collection_column_count; i < chunk.ColumnCount(); i++)
+    {
+      chunk.data[i].SetVectorType(VectorType::CONSTANT_VECTOR);
+      ConstantVector::SetNull(chunk.data[i], true);
+    }
+
+    return SourceResultType::HAVE_MORE_OUTPUT;
   }
 
   //===--------------------------------------------------------------------===//
