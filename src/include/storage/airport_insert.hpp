@@ -80,7 +80,7 @@ namespace duckdb
 
   public:
     // Source interface
-    SourceResultType GetDataInternal(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
+    SourceResultType GetData(ExecutionContext &context, DataChunk &chunk, OperatorSourceInput &input) const override;
 
     bool IsSource() const override
     {

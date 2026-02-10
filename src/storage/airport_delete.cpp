@@ -255,8 +255,8 @@ namespace duckdb
   //===--------------------------------------------------------------------===//
   // GetData
   //===--------------------------------------------------------------------===//
-  SourceResultType AirportDelete::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
-                                                  OperatorSourceInput &input) const
+  SourceResultType AirportDelete::GetData(ExecutionContext &context, DataChunk &chunk,
+                                          OperatorSourceInput &input) const
   {
     auto &state = input.global_state.Cast<AirportDeleteSourceState>();
     auto &g = sink_state->Cast<AirportDeleteGlobalState>();

@@ -118,7 +118,7 @@ namespace duckdb
       ArrowTableFunction::ArrowToDuckDB(state,
                                         data.arrow_table.GetColumns(),
                                         dest,
-                                        false);
+                                        0, false);
       dest.Verify();
     }
 
