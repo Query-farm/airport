@@ -300,7 +300,7 @@ namespace duckdb
 
         loader.RegisterSecretType(secret_type);
 
-        CreateSecretFunction airport_secret_function = {"airport", "config", CreateAirportSecretFunction};
+        CreateSecretFunction airport_secret_function = {"airport", "config", CreateAirportSecretFunction, {}};
         AirportSetSecretParameters(airport_secret_function);
         loader.RegisterFunction(airport_secret_function);
 

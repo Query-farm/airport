@@ -409,7 +409,7 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           state.all_columns,
-                                          false,
+                                          0, false,
                                           airport_bind_data.rowid_column_index);
       }
       output.ReferenceColumns(state.all_columns, global_state.projection_ids());
@@ -422,7 +422,7 @@ namespace duckdb
         ArrowTableFunction::ArrowToDuckDB(state,
                                           airport_bind_data.arrow_table.GetColumns(),
                                           output,
-                                          false,
+                                          0, false,
                                           airport_bind_data.rowid_column_index);
       }
     }

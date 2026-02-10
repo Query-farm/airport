@@ -610,7 +610,7 @@ namespace duckdb
                                         // I'm not sure if arrow table will be defined
                                         data.arrow_table.GetColumns(),
                                         output,
-                                        false);
+                                        0, false);
       state.chunk_offset += output_size;
       if (state.chunk_offset == state.chunk->arrow_array.length)
       {
@@ -677,7 +677,7 @@ namespace duckdb
                                           // I'm not sure if arrow table will be defined
                                           data.arrow_table.GetColumns(),
                                           output,
-                                          false);
+                                          0, false);
         state.chunk_offset += output_size;
       }
 

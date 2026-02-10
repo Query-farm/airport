@@ -208,7 +208,7 @@ namespace duckdb
     return build_error_message(location, "", msg, "");
   }
 
-  AirportFlightException::AirportFlightException(const string &location, const arrow::Status &status, const string &msg) : Exception(extract_extra_info(status, {}), ExceptionType::IO, produce_flight_error_message(location, status, msg))
+  AirportFlightException::AirportFlightException(const string &location, const arrow::Status &status, const string &msg) : Exception(ExceptionType::IO, produce_flight_error_message(location, status, msg), extract_extra_info(status, {}))
   {
   }
 
@@ -217,20 +217,20 @@ namespace duckdb
   }
 
   AirportFlightException::AirportFlightException(const string &location, const arrow::Status &status, const string &msg, const unordered_map<string, string> &extra_info)
-      : Exception(extract_extra_info(status, extra_info), ExceptionType::IO, produce_flight_error_message(location, status, msg))
+      : Exception(ExceptionType::IO, produce_flight_error_message(location, status, msg), extract_extra_info(status, extra_info))
   {
   }
 
-  AirportFlightException::AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const string &status, const string &msg) : Exception(extract_extra_info(status, {}), ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg))
+  AirportFlightException::AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const string &status, const string &msg) : Exception(ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg), extract_extra_info(status, {}))
   {
   }
 
-  AirportFlightException::AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg) : Exception(extract_extra_info(status, {}), ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg))
+  AirportFlightException::AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg) : Exception(ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg), extract_extra_info(status, {}))
   {
   }
 
   AirportFlightException::AirportFlightException(const string &location, const flight::FlightDescriptor &descriptor, const arrow::Status &status, const string &msg, const unordered_map<string, string> &extra_info)
-      : Exception(extract_extra_info(status, extra_info), ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg))
+      : Exception(ExceptionType::IO, produce_flight_error_message(location, descriptor, status, msg), extract_extra_info(status, extra_info))
   {
   }
 }
