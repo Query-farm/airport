@@ -16,6 +16,7 @@
 #include "duckdb/main/extension_helper.hpp"
 #include "airport_logging.hpp"
 #include "query_farm_telemetry.hpp"
+#include "duckdb/main/extension_callback_manager.hpp"
 
 #define AIRPORT_EXTENSION_VERSION "2026010801"
 
@@ -305,11 +306,12 @@ namespace duckdb
         loader.RegisterFunction(airport_secret_function);
 
         auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
-        config.storage_extensions["airport"] = make_uniq<AirportCatalogStorageExtension>();
+        auto &callback_manager = config.GetCallbackManager();
+        callback_manager.Register("airport", make_shared_ptr<AirportCatalogStorageExtension>());
 
         OptimizerExtension airport_optimizer;
         airport_optimizer.optimize_function = AirportOptimizer::Optimize;
-        config.optimizer_extensions.push_back(std::move(airport_optimizer));
+        callback_manager.Register(std::move(airport_optimizer));
 
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
         log_manager.RegisterLogType(make_uniq<AirportLogType>());
