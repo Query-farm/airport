@@ -37,13 +37,21 @@ namespace duckdb
   };
 }
 
-#define AIRPORT_ARROW_ASSERT_OK_LOCATION(expr, location, message)                    \
-  for (::arrow::Status _st = ::arrow::internal::GenericToStatus((expr)); !_st.ok();) \
+namespace airport_internal {
+  inline const ::arrow::Status& ToStatus(const ::arrow::Status& s) { return s; }
+  inline ::arrow::Status ToStatus(::arrow::Status&& s) { return std::move(s); }
+  template <typename T>
+  const ::arrow::Status& ToStatus(const ::arrow::Result<T>& r) { return r.status(); }
+}
+
+#define AIRPORT_ARROW_ASSERT_OK_LOCATION(expr, location, message)              \
+  for (::arrow::Status _st = ::airport_internal::ToStatus((expr)); !_st.ok();) \
     throw AirportFlightException(location, _st, "");
 
-#define AIRPORT_ARROW_ASSERT_OK_LOCATION_DESCRIPTOR(expr, location, descriptor, message) \
-  for (::arrow::Status _st = ::arrow::internal::GenericToStatus((expr)); !_st.ok();)     \
+#define AIRPORT_ARROW_ASSERT_OK_LOCATION_DESCRIPTOR(expr, location, descriptor, message)   \
+  for (::arrow::Status _st = ::airport_internal::ToStatus((expr)); !_st.ok();)              \
     throw AirportFlightException(location, descriptor, _st, message);
+
 
 #define AIRPORT_ARROW_ASSERT_OK_CONTAINER(expr, container, message) \
   AIRPORT_ARROW_ASSERT_OK_LOCATION_DESCRIPTOR(expr, (container)->server_location(), (container)->descriptor(), message)
