@@ -17,12 +17,12 @@ namespace duckdb
 
     // Load the schemas of the entire set from a cached url if possible, useful for scans
     // when all schemas are requested.
-    void LoadEntireSet(DatabaseInstance &db);
+    void LoadEntireSet(ClientContext &context);
 
     std::string GetDefaultSchema(DatabaseInstance &db);
 
   protected:
-    void LoadEntries(DatabaseInstance &db) override;
+    void LoadEntries(ClientContext &context) override;
 
   private:
     unique_ptr<AirportSchemaCollection> collection;

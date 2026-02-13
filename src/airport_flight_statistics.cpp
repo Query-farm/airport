@@ -56,10 +56,8 @@ namespace duckdb
     // So we need to map the column id to the logical type.
     auto &schema = data.schema_root.arrow_schema.children[column_index];
 
-    auto &config = DBConfig::GetConfig(context);
-
     // printf("Column name is %s\n", schema->name);
-    auto arrow_type = AirportGetArrowType(config, *schema);
+    auto arrow_type = AirportGetArrowType(context, *schema);
     auto duck_type = arrow_type->GetDuckType();
 
     // Talk to the server to get the statistics for the column.
@@ -129,7 +127,7 @@ namespace duckdb
     {
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
 
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
       arrow_table.AddColumn(col_index, std::move(arrow_type), schema_item.name);

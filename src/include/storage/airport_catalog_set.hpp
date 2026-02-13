@@ -26,7 +26,7 @@ namespace duckdb
         unique_ptr<CatalogEntry> entry);
 
   protected:
-    virtual void LoadEntries(DatabaseInstance &db) = 0;
+    virtual void LoadEntries(ClientContext &context) = 0;
 
     void EraseEntryInternal(const string &name);
 

@@ -47,7 +47,7 @@ namespace duckdb
 
   // Given an Arrow schema return a vector of the LogicalTypes for that schema.
   static vector<LogicalType> AirportSchemaToLogicalTypes(
-      DatabaseInstance &db,
+      ClientContext &context,
       std::shared_ptr<arrow::Schema> schema,
       const AirportLocationDescriptor &location_descriptor)
   {
@@ -59,7 +59,6 @@ namespace duckdb
         "ExportSchema");
 
     vector<LogicalType> return_types;
-    auto &config = db.config;
 
     const idx_t column_count = (idx_t)schema_root.arrow_schema.n_children;
 
@@ -73,7 +72,7 @@ namespace duckdb
       {
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       // Indicate that the field should select any type.
       bool is_any_type = false;
@@ -99,9 +98,10 @@ namespace duckdb
     return return_types;
   }
 
-  void AirportScalarFunctionSet::LoadEntries(DatabaseInstance &db)
+  void AirportScalarFunctionSet::LoadEntries(ClientContext &context)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
+    auto &db = *context.db;
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
@@ -133,9 +133,9 @@ namespace duckdb
       // FIXME: need a way to specify the function stability.
       for (const auto &function : pair.second)
       {
-        auto input_types = AirportSchemaToLogicalTypes(db, function.input_schema(), function);
+        auto input_types = AirportSchemaToLogicalTypes(context, function.input_schema(), function);
 
-        auto output_types = AirportSchemaToLogicalTypes(db, function.schema(), function);
+        auto output_types = AirportSchemaToLogicalTypes(context, function.schema(), function);
         D_ASSERT(output_types.size() == 1);
 
         auto scalar_func = ScalarFunction(input_types, output_types[0],

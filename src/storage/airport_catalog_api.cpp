@@ -594,8 +594,6 @@ namespace duckdb
                                                    &schema_root.arrow_schema),
                                       &location_descriptor,
                                       "ExportSchema");
-    auto &config = DBConfig::GetConfig(context);
-
     const auto number_of_columns = (idx_t)schema_root.arrow_schema.n_children;
 
     for (idx_t col_idx = 0;
@@ -609,7 +607,7 @@ namespace duckdb
 
       if (AirportFieldMetadataIsRowId(schema_child.metadata))
       {
-        auto arrow_type = AirportGetArrowType(config, schema_child);
+        auto arrow_type = AirportGetArrowType(context, schema_child);
         return arrow_type->GetDuckType();
       }
     }

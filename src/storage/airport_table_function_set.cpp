@@ -83,7 +83,6 @@ namespace duckdb
     input_schema_types.reserve(column_count);
     source_indexes.reserve(column_count);
 
-    auto &config = DBConfig::GetConfig(context);
     int seen_named_parameters = 0;
     vector<LogicalType> input_schema_any_real_types;
     for (idx_t col_idx = 0;
@@ -120,7 +119,7 @@ namespace duckdb
         }
       }
       input_schema_names.push_back(name);
-      auto arrow_type = AirportGetArrowType(config, schema_field);
+      auto arrow_type = AirportGetArrowType(context, schema_field);
 
       if (is_any_type)
       {
@@ -318,7 +317,7 @@ namespace duckdb
 
   static ArrowSchemaTableFunctionTypes
   AirportSchemaToLogicalTypesWithNaming(
-      DatabaseInstance &db,
+      ClientContext &context,
       std::shared_ptr<arrow::Schema> schema,
       const AirportLocationDescriptor &location_descriptor)
   {
@@ -330,7 +329,6 @@ namespace duckdb
         "ExportSchema");
 
     ArrowSchemaTableFunctionTypes result;
-    auto &config = db.config;
     const idx_t column_count = (idx_t)schema_root.arrow_schema.n_children;
 
     result.all_names.reserve(column_count);
@@ -346,7 +344,7 @@ namespace duckdb
       {
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       auto metadata = ArrowSchemaMetadata(schema_item.metadata);
 
@@ -612,13 +610,13 @@ namespace duckdb
                                         output,
                                         false);
       state.chunk_offset += output_size;
-      if (state.chunk_offset == state.chunk->arrow_array.length)
+      if (state.chunk_offset == (idx_t)state.chunk->arrow_array.length)
       {
         state.chunk_offset = 0;
       }
       output.Verify();
 
-      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != state.chunk->arrow_array.length)
+      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != (idx_t)state.chunk->arrow_array.length)
       {
         global_state.continuing_current_chunk = true;
         return OperatorResultType::HAVE_MORE_OUTPUT;
@@ -681,13 +679,13 @@ namespace duckdb
         state.chunk_offset += output_size;
       }
 
-      if (state.chunk_offset == state.chunk->arrow_array.length)
+      if (state.chunk_offset == (idx_t)state.chunk->arrow_array.length)
       {
         state.chunk_offset = 0;
       }
       output.Verify();
 
-      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != state.chunk->arrow_array.length)
+      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != (idx_t)state.chunk->arrow_array.length)
       {
         global_state.continuing_current_chunk = true;
         return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
@@ -706,9 +704,10 @@ namespace duckdb
     return OperatorFinalizeResultType::FINISHED;
   }
 
-  void AirportTableFunctionSet::LoadEntries(DatabaseInstance &db)
+  void AirportTableFunctionSet::LoadEntries(ClientContext &context)
   {
     // auto &transaction = AirportTransaction::Get(context, catalog);
+    auto &db = *context.db;
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
@@ -740,7 +739,7 @@ namespace duckdb
         // schema that is returned likely should be requested dynamically from the dynamic
         // flight function.
 
-        auto input_types = AirportSchemaToLogicalTypesWithNaming(db, function.input_schema(), function);
+        auto input_types = AirportSchemaToLogicalTypesWithNaming(context, function.input_schema(), function);
 
         // Determine if we have a table input.
         bool has_table_input = false;

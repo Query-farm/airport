@@ -252,7 +252,7 @@ namespace duckdb
         throw InvalidInputException("AirportSchemaToLogicalTypes: released schema passed");
       }
       send_names.push_back(string(schema_item.name));
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       // Indicate that the field should select any type.
       bool is_any_type = false;

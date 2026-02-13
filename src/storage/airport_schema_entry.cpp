@@ -10,6 +10,7 @@
 #include "duckdb/parser/parsed_data/alter_info.hpp"
 #include "duckdb/parser/parsed_data/alter_table_info.hpp"
 #include "duckdb/parser/parsed_expression_iterator.hpp"
+#include "duckdb/parser/expression/columnref_expression.hpp"
 #include "airport_request_headers.hpp"
 #include "storage/airport_catalog.hpp"
 #include "airport_macros.hpp"

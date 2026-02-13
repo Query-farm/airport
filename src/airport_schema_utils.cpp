@@ -8,14 +8,14 @@ namespace duckdb
 {
 
   duckdb::unique_ptr<duckdb::ArrowType> AirportGetArrowType(
-      duckdb::DBConfig &config,
+      ClientContext &context,
       ArrowSchema &schema_item)
   {
-    auto arrow_type = ArrowType::GetArrowLogicalType(config, schema_item);
+    auto arrow_type = ArrowType::GetArrowLogicalType(context, schema_item);
 
     if (schema_item.dictionary)
     {
-      auto dictionary_type = ArrowType::GetArrowLogicalType(config, *schema_item.dictionary);
+      auto dictionary_type = ArrowType::GetArrowLogicalType(context, *schema_item.dictionary);
       arrow_type->SetDictionary(std::move(dictionary_type));
     }
     return arrow_type;
@@ -50,8 +50,6 @@ namespace duckdb
     {
       *rowid_column_index = COLUMN_IDENTIFIER_ROW_ID;
     }
-
-    auto &config = DBConfig::GetConfig(context);
 
     const idx_t num_columns = static_cast<idx_t>(schema_root.arrow_schema.n_children);
 
@@ -91,7 +89,7 @@ namespace duckdb
         }
       }
 
-      auto arrow_type = AirportGetArrowType(config, schema);
+      auto arrow_type = AirportGetArrowType(context, schema);
 
       const idx_t column_id = is_rowid_column ? COLUMN_IDENTIFIER_ROW_ID : col_idx;
 

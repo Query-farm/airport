@@ -22,7 +22,7 @@ namespace duckdb
     if (!is_loaded)
     {
       is_loaded = true;
-      LoadEntries(*context.db);
+      LoadEntries(context);
     }
     auto entry = entries.find(lookup_info.GetEntryName());
     if (entry == entries.end())
@@ -51,7 +51,7 @@ namespace duckdb
     if (!is_loaded)
     {
       is_loaded = true;
-      LoadEntries(*context.db);
+      LoadEntries(context);
     }
 
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
@@ -109,7 +109,7 @@ namespace duckdb
     if (!is_loaded)
     {
       is_loaded = true;
-      LoadEntries(*context.db);
+      LoadEntries(context);
     }
     for (auto &entry : entries)
     {

@@ -110,7 +110,7 @@ namespace duckdb
     // If there is a contents_url for all schemas make sure it is present and decompressed on the disk, so that the
     // schema loaders will grab it.
 
-    schemas.LoadEntireSet(*context.db);
+    schemas.LoadEntireSet(context);
 
     schemas.Scan(context, [&](CatalogEntry &schema)
                  { callback(schema.Cast<AirportSchemaEntry>()); });

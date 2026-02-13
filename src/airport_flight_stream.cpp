@@ -75,8 +75,6 @@ namespace duckdb
         (&bind_data),
         "ExportSchema");
 
-    auto &config = DBConfig::GetConfig(context);
-
     // Store all of the types of the arguments.
     vector<LogicalType> arg_types;
     vector<idx_t> arg_indexes;
@@ -99,17 +97,17 @@ namespace duckdb
       }
 
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       arg_types.push_back(arrow_type->GetDuckType());
       arg_indexes.push_back(col_index);
     }
 
-    for (idx_t col_index = 0; col_index < schema_root.arrow_schema.n_children; col_index++)
+    for (idx_t col_index = 0; col_index < (idx_t)schema_root.arrow_schema.n_children; col_index++)
     {
       auto &schema_item = *schema_root.arrow_schema.children[col_index];
 
-      auto arrow_type = AirportGetArrowType(config, schema_item);
+      auto arrow_type = AirportGetArrowType(context, schema_item);
 
       all_types.push_back(arrow_type->GetDuckType());
       arrow_table.AddColumn(col_index, std::move(arrow_type), schema_item.name);

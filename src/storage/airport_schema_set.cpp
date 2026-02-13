@@ -45,14 +45,14 @@ namespace duckdb
     return fs.JoinPath(home_directory, ".duckdb");
   }
 
-  void AirportSchemaSet::LoadEntireSet(DatabaseInstance &db)
+  void AirportSchemaSet::LoadEntireSet(ClientContext &context)
   {
     lock_guard<mutex> l(entry_lock);
 
     if (called_load_entries == false)
     {
       // We haven't called load entries yet.
-      LoadEntries(db);
+      LoadEntries(context);
       called_load_entries = true;
     }
   }
@@ -72,8 +72,9 @@ namespace duckdb
     return fs.JoinPath(home_directory, ".duckdb");
   }
 
-  void AirportSchemaSet::LoadEntries(DatabaseInstance &db)
+  void AirportSchemaSet::LoadEntries(ClientContext &context)
   {
+    auto &db = *context.db;
     if (called_load_entries)
     {
       return;
@@ -210,8 +211,6 @@ namespace duckdb
 
   std::string AirportSchemaSet::GetDefaultSchema(DatabaseInstance &db)
   {
-    LoadEntireSet(db);
-
     return default_schema_;
   }
 

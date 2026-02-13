@@ -55,13 +55,11 @@ namespace duckdb
 
   void AirportArrowSchemaToCreateTableInfo(CreateTableInfo &info,
                                            std::shared_ptr<arrow::Schema> info_schema,
-                                           DatabaseInstance &db,
+                                           ClientContext &context,
                                            const std::string &table_name,
                                            AirportLocationDescriptor &location,
                                            LogicalType &rowid_type)
   {
-    auto &config = db.config;
-
     ArrowSchema arrow_schema;
 
     AIRPORT_ARROW_ASSERT_OK_CONTAINER(ExportSchema(*info_schema, &arrow_schema),
@@ -111,7 +109,7 @@ namespace duckdb
 
       if (AirportFieldMetadataIsRowId(column.metadata))
       {
-        rowid_type = AirportGetArrowType(config, column)->GetDuckType();
+        rowid_type = AirportGetArrowType(context, column)->GetDuckType();
 
         // So the skipping here is a problem, since its assumed
         // that the return_type and column_names can be easily indexed.
@@ -122,10 +120,10 @@ namespace duckdb
 
       column_names.emplace_back(column_name);
 
-      auto arrow_type = ArrowType::GetArrowLogicalType(config, column);
+      auto arrow_type = ArrowType::GetArrowLogicalType(context, column);
       if (column.dictionary)
       {
-        auto dictionary_type = ArrowType::GetArrowLogicalType(config, *column.dictionary);
+        auto dictionary_type = ArrowType::GetArrowLogicalType(context, *column.dictionary);
         return_types.emplace_back(dictionary_type->GetDuckType());
       }
       else
@@ -187,8 +185,9 @@ namespace duckdb
     }
   }
 
-  void AirportTableSet::LoadEntries(DatabaseInstance &db)
+  void AirportTableSet::LoadEntries(ClientContext &context)
   {
+    auto &db = *context.db;
     // auto &transaction = AirportTransaction::Get(context, catalog);
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
 
@@ -211,7 +210,7 @@ namespace duckdb
       LogicalType rowid_type;
       AirportArrowSchemaToCreateTableInfo(info,
                                           table.schema(),
-                                          db,
+                                          context,
                                           table.name(),
                                           table,
                                           rowid_type);
@@ -306,7 +305,7 @@ namespace duckdb
 
     AirportArrowSchemaToCreateTableInfo(create_info,
                                         info_schema,
-                                        *context.db,
+                                        context,
                                         app_metadata_obj.name,
                                         table_location,
                                         rowid_type);

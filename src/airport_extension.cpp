@@ -54,11 +54,6 @@ namespace duckdb
         return result;
     }
 
-    static void AirportSetSecretParameters(CreateSecretFunction &function)
-    {
-        function.named_parameters["auth_token"] = LogicalType::VARCHAR;
-    }
-
     struct ParsedURL
     {
         std::string location; // e.g. grpc+tls://hello-airport.query.farm
@@ -300,16 +295,17 @@ namespace duckdb
 
         loader.RegisterSecretType(secret_type);
 
-        CreateSecretFunction airport_secret_function = {"airport", "config", CreateAirportSecretFunction};
-        AirportSetSecretParameters(airport_secret_function);
+        CreateSecretFunction airport_secret_function = {"airport", "config", CreateAirportSecretFunction, {{"auth_token", LogicalType::VARCHAR}}};
+        //        AirportSetSecretParameters(airport_secret_function);
         loader.RegisterFunction(airport_secret_function);
 
         auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
-        config.storage_extensions["airport"] = make_uniq<AirportCatalogStorageExtension>();
+        StorageExtension::Register(config, "airport", make_shared_ptr<AirportCatalogStorageExtension>());
 
         OptimizerExtension airport_optimizer;
         airport_optimizer.optimize_function = AirportOptimizer::Optimize;
-        config.optimizer_extensions.push_back(std::move(airport_optimizer));
+        OptimizerExtension::Register(config, std::move(airport_optimizer));
+        //        config.optimizer_extensions.push_back(std::move(airport_optimizer));
 
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
         log_manager.RegisterLogType(make_uniq<AirportLogType>());
