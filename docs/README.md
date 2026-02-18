@@ -8,6 +8,13 @@ To understand the rationale behind the development of this extension, check out 
 
 Visit the [documentation for this extension](https://airport.query.farm).
 
+## Installation
+
+```sql
+INSTALL airport FROM community;
+LOAD airport;
+```
+
 # Building the extension
 
 ```sh
