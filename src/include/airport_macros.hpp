@@ -38,11 +38,11 @@ namespace duckdb
 }
 
 #define AIRPORT_ARROW_ASSERT_OK_LOCATION(expr, location, message)                    \
-  for (::arrow::Status _st = ::arrow::internal::GenericToStatus((expr)); !_st.ok();) \
+  for (::arrow::Status _st = ::arrow::ToStatus((expr)); !_st.ok();) \
     throw AirportFlightException(location, _st, "");
 
 #define AIRPORT_ARROW_ASSERT_OK_LOCATION_DESCRIPTOR(expr, location, descriptor, message) \
-  for (::arrow::Status _st = ::arrow::internal::GenericToStatus((expr)); !_st.ok();)     \
+  for (::arrow::Status _st = ::arrow::ToStatus((expr)); !_st.ok();)     \
     throw AirportFlightException(location, descriptor, _st, message);
 
 #define AIRPORT_ARROW_ASSERT_OK_CONTAINER(expr, container, message) \
