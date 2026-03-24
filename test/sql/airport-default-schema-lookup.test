@@ -1,0 +1,74 @@
+# name: test/sql/airport-default-schema-lookup.test
+# description: test that LookupSchema does not block lookups for the "main" (DEFAULT_SCHEMA) schema
+# group: [airport]
+
+require httpfs
+
+require airport
+
+# Require test server URL
+require-env AIRPORT_TEST_SERVER
+
+# Create the initial secret, the token value doesn't matter.
+statement ok
+CREATE SECRET airport_default_schema_test (
+  type airport,
+  auth_token uuid(),
+  scope '${AIRPORT_TEST_SERVER}');
+
+# Reset the test server
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'reset');
+
+# Create the initial database
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'create_database', 'default_schema_test');
+
+statement ok
+ATTACH 'default_schema_test' (TYPE AIRPORT, location '${AIRPORT_TEST_SERVER}');
+
+# Verify that existing utils schema TVFs still work (regression test)
+query T
+select * from default_schema_test.utils.test_echo('hello world');
+----
+hello world
+
+# Create a schema explicitly called "main" and add a table to it.
+# Before the fix, any lookup against the "main" schema would return null
+# from LookupSchema, causing confusing "function does not exist" errors
+# instead of actually searching the schema.
+statement ok
+CREATE SCHEMA default_schema_test.main;
+
+statement ok
+CREATE TABLE default_schema_test.main.test_table (
+    name STRING,
+    value INT
+);
+
+statement ok
+INSERT INTO default_schema_test.main.test_table (name, value) VALUES ('alice', 42);
+
+# This is the key test: three-part name with "main" schema must resolve correctly.
+# Before the fix, LookupSchema("main") returned null and this would fail with
+# "Table with name test_table does not exist" instead of finding it.
+query TI
+SELECT name, value FROM default_schema_test.main.test_table;
+----
+alice	42
+
+# Also verify that table functions in utils still work after creating a "main" schema
+query T
+select * from default_schema_test.utils.test_echo('still works');
+----
+still works
+
+# Verify scalar functions in utils still resolve
+query T
+select default_schema_test.utils.test_uppercase('hello');
+----
+HELLO
+
+# Clean up
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'reset');
