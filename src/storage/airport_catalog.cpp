@@ -120,15 +120,18 @@ namespace duckdb
                                                                 OnEntryNotFound if_not_found)
   {
     auto &schema_name = schema_lookup.GetEntryName();
-    if (schema_name == DEFAULT_SCHEMA)
+    if (schema_name == DEFAULT_SCHEMA && default_schema_ != DEFAULT_SCHEMA)
     {
-      if (if_not_found == OnEntryNotFound::RETURN_NULL)
+      // "main" was requested but the server's default schema has a different name —
+      // redirect to the actual default schema so unqualified lookups work.
+      EntryLookupInfo default_lookup(schema_lookup, default_schema_);
+      auto entry = schemas.GetEntry(transaction.GetContext(), default_lookup);
+      if (entry)
       {
-        // There really isn't a default way to handle this, so just return null.
-        return nullptr;
+        return reinterpret_cast<SchemaCatalogEntry *>(entry.get());
       }
-      throw CatalogException(schema_lookup.GetErrorContext(), "Schema with name \"%s\" not found", schema_name);
     }
+    // Look up the schema by its actual name (handles both "main" and any other schema).
     auto entry = schemas.GetEntry(transaction.GetContext(), schema_lookup);
     if (!entry && if_not_found != OnEntryNotFound::RETURN_NULL)
     {
