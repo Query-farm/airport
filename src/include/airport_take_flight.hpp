@@ -5,6 +5,7 @@
 
 #include "airport_flight_stream.hpp"
 #include "airport_schema_utils.hpp"
+#include "duckdb/planner/table_filter_set.hpp"
 
 namespace duckdb
 {
