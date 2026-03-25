@@ -2,6 +2,7 @@
 
 #include "duckdb/execution/physical_operator.hpp"
 #include "duckdb/common/index_vector.hpp"
+#include "duckdb/planner/bound_constraint.hpp"
 
 namespace duckdb
 {
