@@ -209,7 +209,7 @@ namespace duckdb
             ListVector::Reserve(descriptor_entries[2], new_size);
           }
 
-          auto path_values = ListVector::GetEntry(descriptor_entries[2]);
+          auto &path_values = ListVector::GetEntry(descriptor_entries[2]);
           auto path_parts = FlatVector::GetData<string_t>(path_values);
 
           for (size_t i = 0; i < descriptor.path.size(); i++)
