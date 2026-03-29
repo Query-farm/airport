@@ -1,6 +1,8 @@
 name: Main Extension Distribution Pipeline
 on:
-  push: null
+  push:
+    branches:
+    - v1.5
   pull_request: null
   workflow_dispatch: null
   schedule:
