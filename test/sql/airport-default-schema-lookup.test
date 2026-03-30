@@ -1,0 +1,133 @@
+# name: test/sql/airport-default-schema-lookup.test
+# description: test that LookupSchema does not block lookups for the "main" (DEFAULT_SCHEMA) schema
+# group: [airport]
+#
+# Reproduces the bug where fully-qualified table function calls like
+# catalog.main.test_echo('hello') fail with "Table Function does not exist"
+# even though the function is visible in duckdb_functions().
+# Root cause: LookupSchema returns null for "main" schema, preventing the
+# function binder from reaching the catalog entry.
+
+require httpfs
+
+require airport
+
+# Require test server URL
+require-env AIRPORT_TEST_SERVER
+
+# Create the initial secret, the token value doesn't matter.
+statement ok
+CREATE SECRET airport_default_schema_test (
+  type airport,
+  auth_token uuid(),
+  scope '${AIRPORT_TEST_SERVER}');
+
+# Reset the test server
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'reset');
+
+# Create the initial database
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'create_database', 'schema_test');
+
+statement ok
+ATTACH 'schema_test' (TYPE AIRPORT, location '${AIRPORT_TEST_SERVER}');
+
+# -------------------------------------------------------------------
+# 1. Table functions via non-"main" schema (utils) — baseline
+#    These work before and after the fix.
+# -------------------------------------------------------------------
+
+query T
+select * from schema_test.utils.test_echo('hello from utils');
+----
+hello from utils
+
+query T
+select * from schema_test.utils.test_repeat('repeat me', 3);
+----
+repeat me
+repeat me
+repeat me
+
+# -------------------------------------------------------------------
+# 2. Create a "main" schema with a table — test three-part table lookup
+#    Before the fix: LookupSchema("main") returned null, so even tables
+#    in a "main" schema were invisible.
+# -------------------------------------------------------------------
+
+statement ok
+CREATE SCHEMA schema_test.main;
+
+statement ok
+CREATE TABLE schema_test.main.devices (
+    name STRING,
+    ip STRING
+);
+
+statement ok
+INSERT INTO schema_test.main.devices (name, ip) VALUES ('scale-1', '192.168.1.10');
+
+query TT
+SELECT name, ip FROM schema_test.main.devices;
+----
+scale-1	192.168.1.10
+
+# -------------------------------------------------------------------
+# 3. Table functions via "main" schema should still resolve
+#    The reference server registers TVFs in "utils", not "main", so
+#    we test that the utils TVFs still work after creating a "main" schema.
+#    Before the fix, creating "main" could interfere with other lookups.
+# -------------------------------------------------------------------
+
+query T
+select * from schema_test.utils.test_echo('still works after main created');
+----
+still works after main created
+
+# Scalar functions in utils via three-part name
+query T
+select schema_test.utils.test_uppercase('hello');
+----
+HELLO
+
+query I
+select schema_test.utils.test_add(10, 32);
+----
+42
+
+# -------------------------------------------------------------------
+# 4. USE schema_test.main should work (sets default catalog+schema)
+#    Before the fix, this would fail because LookupSchema("main") returned null.
+# -------------------------------------------------------------------
+
+statement ok
+USE schema_test.main;
+
+query TT
+SELECT name, ip FROM devices;
+----
+scale-1	192.168.1.10
+
+# -------------------------------------------------------------------
+# 5. Attach same database under alias — three-part names with alias
+#    Verifies the fix works when the catalog name differs from the
+#    database name (common pattern: ATTACH 'db' AS remote).
+# -------------------------------------------------------------------
+
+statement ok
+ATTACH 'schema_test' AS remote_alias (TYPE AIRPORT, location '${AIRPORT_TEST_SERVER}');
+
+query T
+select * from remote_alias.utils.test_echo('via alias');
+----
+via alias
+
+query TT
+SELECT name, ip FROM remote_alias.main.devices;
+----
+scale-1	192.168.1.10
+
+# Clean up
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'reset');
