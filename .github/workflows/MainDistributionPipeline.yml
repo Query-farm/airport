@@ -19,6 +19,7 @@ jobs:
       ci_tools_version: main
       extra_toolchains: parser_tools
       exclude_archs: wasm_mvp;wasm_eh;wasm_threads;
+      reduced_ci_mode: disabled
       vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
       test_config: "{\"test_env_variables\":\n  {\n    \"AIRPORT_TEST_SERVER\": \"\
         grpc+tls://airport-ci.query.farm\"\n  }\n}\n"
