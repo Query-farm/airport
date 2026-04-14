@@ -1,0 +1,71 @@
+# name: test/sql/airport-passthrough-mode.test
+# description: test passthrough mode — forward SQL as CMD instead of TVF decomposition
+# group: [airport]
+
+require httpfs
+
+require airport
+
+# Require test server URL (a DuckDB-backed airport server with shellfs + hostfs loaded)
+require-env AIRPORT_TEST_SERVER
+
+# Create the initial secret
+statement ok
+CREATE SECRET airport_passthrough_test (
+  type airport,
+  auth_token uuid(),
+  scope '${AIRPORT_TEST_SERVER}');
+
+# Attach in passthrough mode
+statement ok
+ATTACH '${AIRPORT_TEST_SERVER}' AS remote (TYPE AIRPORT, mode passthrough);
+
+statement ok
+USE remote;
+
+# -- Basic: range() with integer arg (tests proper type mapping) --------
+
+query I
+SELECT * FROM range(3);
+----
+0
+1
+2
+
+# -- shellfs: read_csv with pipe command + named params -----------------
+# This is the primary use case: the remote DuckDB has shellfs loaded,
+# and the client forwards the SQL as-is so named params (auto_detect,
+# header) work correctly.
+
+query T
+SELECT * FROM read_csv('echo passthrough_shellfs_test |', auto_detect:=true, header:=false);
+----
+passthrough_shellfs_test
+
+# -- read_csv with auto-detect (no explicit params) --------------------
+
+query T
+SELECT * FROM read_csv_auto('echo auto_detect_test |');
+----
+auto_detect_test
+
+# -- Verify passthrough reconstructs SQL correctly ---------------------
+# Named params should appear as name := value in the forwarded SQL,
+# not as positional args.
+
+query T
+SELECT * FROM read_csv('echo named_param_test |', auto_detect:=true, header:=false, delim:=',');
+----
+named_param_test
+
+# -- Non-passthrough ATTACH still works normally -----------------------
+
+statement ok
+DETACH remote;
+
+statement ok
+ATTACH '${AIRPORT_TEST_SERVER}' AS normal (TYPE AIRPORT);
+
+# Normal mode should still work for basic operations
+statement ok
+USE normal;
