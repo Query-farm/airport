@@ -195,7 +195,20 @@ namespace duckdb
     {
       return nullptr;
     }
-    return GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
+    auto result = GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
+    if (!result && lookup_info.GetCatalogType() == CatalogType::TABLE_FUNCTION_ENTRY)
+    {
+      // In passthrough mode, create a catch-all function on the fly.
+      // It accepts any args and forwards the entire call as SQL via CMD descriptor
+      // (same path as airport_take_flight).
+      auto &airport_catalog = catalog.Cast<AirportCatalog>();
+      if (airport_catalog.attach_parameters()->passthrough())
+      {
+        return table_functions.CreatePassthroughEntry(
+            transaction.GetContext(), lookup_info.GetEntryName(), airport_catalog);
+      }
+    }
+    return result;
   }
 
   AirportCatalogSet &AirportSchemaEntry::GetCatalogSet(CatalogType type)

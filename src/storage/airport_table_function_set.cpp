@@ -929,4 +929,101 @@ namespace duckdb
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Passthrough: create a catch-all function entry for any name.
+  // Reconstructs the SQL and sends as CMD, same as airport_take_flight.
+  // ---------------------------------------------------------------------------
+
+  // Bind data for passthrough functions — stores the server location and function name.
+  struct AirportPassthroughBindData : public TableFunctionInfo
+  {
+    string server_location;
+    string fn_name;
+    explicit AirportPassthroughBindData(string loc, string name)
+        : server_location(std::move(loc)), fn_name(std::move(name)) {}
+  };
+
+  static unique_ptr<FunctionData> passthrough_bind(
+      ClientContext &context,
+      TableFunctionBindInput &input,
+      vector<LogicalType> &return_types,
+      vector<string> &names)
+  {
+    auto &info = input.info->Cast<AirportPassthroughBindData>();
+
+    // Reconstruct SQL: SELECT * FROM fn_name(positional_args, named := value, ...)
+    auto val_to_sql = [](const Value &val) -> std::string {
+      switch (val.type().id())
+      {
+      case LogicalTypeId::BOOLEAN:
+      case LogicalTypeId::TINYINT:
+      case LogicalTypeId::SMALLINT:
+      case LogicalTypeId::INTEGER:
+      case LogicalTypeId::BIGINT:
+      case LogicalTypeId::FLOAT:
+      case LogicalTypeId::DOUBLE:
+      case LogicalTypeId::DECIMAL:
+        return val.ToString();
+      default:
+        return val.ToSQLString();
+      }
+    };
+
+    std::string sql = "SELECT * FROM " + info.fn_name + "(";
+    bool first = true;
+    for (auto &val : input.inputs)
+    {
+      if (!first) sql += ", ";
+      first = false;
+      sql += val_to_sql(val);
+    }
+    for (auto &[key, val] : input.named_parameters)
+    {
+      if (!first) sql += ", ";
+      first = false;
+      sql += key + " := " + val_to_sql(val);
+    }
+    sql += ")";
+
+    auto descriptor = arrow::flight::FlightDescriptor::Command(sql);
+    AirportTakeFlightParameters params(info.server_location, context, input);
+
+    return AirportTakeFlightBindWithFlightDescriptor(
+        params, descriptor, context, input, return_types, names,
+        nullptr, std::nullopt, nullptr);
+  }
+
+  optional_ptr<CatalogEntry> AirportTableFunctionSet::CreatePassthroughEntry(
+      ClientContext &context, const string &fn_name, AirportCatalog &airport_catalog)
+  {
+    // Check cache first
+    auto it = passthrough_entries_.find(fn_name);
+    if (it != passthrough_entries_.end())
+    {
+      return it->second.get();
+    }
+
+    // Create a table function that accepts anything
+    TableFunction table_func({}, AirportTakeFlight, passthrough_bind,
+                             AirportArrowScanInitGlobal, AirportArrowScanInitLocal);
+    table_func.varargs = LogicalType::ANY;
+    table_func.projection_pushdown = true;
+    table_func.filter_pushdown = false;
+    table_func.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
+    table_func.table_scan_progress = AirportTakeFlightScanProgress;
+    table_func.function_info = make_uniq<AirportPassthroughBindData>(
+        airport_catalog.attach_parameters()->location(), fn_name);
+
+    TableFunctionSet func_set(fn_name);
+    func_set.AddFunction(table_func);
+
+    CreateTableFunctionInfo info(func_set);
+
+    auto entry = make_uniq_base<StandardEntry, TableFunctionCatalogEntry>(
+        catalog, schema, info.Cast<CreateTableFunctionInfo>());
+    auto entry_ptr = entry.get();
+    passthrough_entries_[fn_name] = std::move(entry);
+    return entry_ptr;
+  }
+
 } // namespace duckdb
