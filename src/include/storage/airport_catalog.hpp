@@ -11,8 +11,8 @@ namespace duckdb
 
   struct AirportAttachParameters
   {
-    AirportAttachParameters(const string &location, const string &auth_token, const string &secret_name, const string &criteria)
-        : location_(location), auth_token_(auth_token), secret_name_(secret_name), criteria_(criteria)
+    AirportAttachParameters(const string &location, const string &auth_token, const string &secret_name, const string &criteria, bool passthrough = false)
+        : location_(location), auth_token_(auth_token), secret_name_(secret_name), criteria_(criteria), passthrough_(passthrough)
     {
     }
 
@@ -36,6 +36,11 @@ namespace duckdb
       return criteria_;
     }
 
+    bool passthrough() const
+    {
+      return passthrough_;
+    }
+
   private:
     // The location of the flight server.
     string location_;
@@ -45,6 +50,8 @@ namespace duckdb
     string secret_name_;
     // The criteria to pass to the flight server when listing flights.
     string criteria_;
+    // When true, forward all SQL to the remote server instead of decomposing into TVF calls.
+    bool passthrough_;
   };
 
   class AirportClearCacheFunction : public TableFunction

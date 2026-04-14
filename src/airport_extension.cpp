@@ -117,6 +117,7 @@ namespace duckdb
         string secret_name;
         string auth_token;
         string location;
+        bool passthrough = false;
 
         string db_name = info.path;
 
@@ -164,6 +165,18 @@ namespace duckdb
             {
                 location = entry.second.ToString();
             }
+            else if (lower_name == "mode")
+            {
+                auto mode_val = StringUtil::Lower(entry.second.ToString());
+                if (mode_val == "passthrough")
+                {
+                    passthrough = true;
+                }
+                else
+                {
+                    throw BinderException("Unrecognized mode for Airport ATTACH: %s (expected 'passthrough')", mode_val);
+                }
+            }
             else
             {
                 throw BinderException("Unrecognized option for Airport ATTACH: %s", entry.first);
@@ -177,7 +190,7 @@ namespace duckdb
             throw BinderException("No location provided for Airport ATTACH.");
         }
 
-        return make_uniq<AirportCatalog>(db, db_name, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
+        return make_uniq<AirportCatalog>(db, db_name, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, "", passthrough));
     }
 
     static unique_ptr<TransactionManager> CreateTransactionManager(optional_ptr<StorageExtensionInfo> storage_info, AttachedDatabase &db,

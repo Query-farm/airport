@@ -1,4 +1,7 @@
 #include "duckdb.hpp"
+#include "duckdb/main/database_manager.hpp"
+#include "duckdb/main/attached_database.hpp"
+#include "storage/airport_catalog.hpp"
 #include "duckdb/catalog/catalog_entry/scalar_function_catalog_entry.hpp"
 #include "duckdb/catalog/catalog_entry/table_function_catalog_entry.hpp"
 #include "duckdb/catalog/dependency_list.hpp"
@@ -245,6 +248,58 @@ namespace duckdb
       vector<string> &names)
   {
     auto function_info = input.info->Cast<AirportDynamicTableFunctionInfo>();
+
+    // Passthrough mode: reconstruct SQL and send as CMD instead of decomposing into TVF.
+    // Check if the catalog this function belongs to is in passthrough mode.
+    // Walk all attached databases to find the airport catalog that owns this function's server location.
+    bool is_passthrough = false;
+    {
+      auto &db_manager = DatabaseManager::Get(context);
+      auto databases = db_manager.GetDatabases(context);
+      for (auto &db_entry : databases)
+      {
+        auto &cat = db_entry.get()->GetCatalog();
+        if (cat.GetCatalogType() == "airport")
+        {
+          auto &airport_cat = cat.Cast<AirportCatalog>();
+          if (airport_cat.attach_parameters()->passthrough())
+          {
+            is_passthrough = true;
+            break;
+          }
+        }
+      }
+    }
+    if (is_passthrough)
+    {
+      // Reconstruct: SELECT * FROM fn_name(positional_args, named := value, ...)
+      auto fn_name = function_info.function->name();
+      std::string sql = "SELECT * FROM " + fn_name + "(";
+      bool first = true;
+      for (auto &val : input.inputs)
+      {
+        if (!first) sql += ", ";
+        first = false;
+        sql += val.ToSQLString();
+      }
+      for (auto &[key, val] : input.named_parameters)
+      {
+        if (!first) sql += ", ";
+        first = false;
+        sql += key + " := " + val.ToSQLString();
+      }
+      sql += ")";
+
+      auto descriptor = arrow::flight::FlightDescriptor::Command(sql);
+      auto params = AirportTakeFlightParameters(function_info.function->server_location(),
+                                                context,
+                                                input);
+      return AirportTakeFlightBindWithFlightDescriptor(
+          params,
+          descriptor,
+          context,
+          input, return_types, names, nullptr, std::nullopt, nullptr);
+    }
 
     auto buffer = AirportDynamicSerializeParameters(function_info.function->input_schema(),
                                                     context,
