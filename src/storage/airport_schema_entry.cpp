@@ -195,9 +195,12 @@ namespace duckdb
     {
       return nullptr;
     }
-    // In passthrough mode, ALL table functions go through the passthrough path.
-    // Don't even check the server catalog — just forward as SQL.
-    if (lookup_info.GetCatalogType() == CatalogType::TABLE_FUNCTION_ENTRY)
+    // In passthrough mode, try the server catalog first (it has correct named params),
+    // then fall back to catch-all for unknown functions.
+    // The catalog-registered functions use AirportDynamicTableBind which detects
+    // passthrough mode and forwards SQL instead of decomposing into TVF.
+    auto result = GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
+    if (!result && lookup_info.GetCatalogType() == CatalogType::TABLE_FUNCTION_ENTRY)
     {
       auto &airport_catalog = catalog.Cast<AirportCatalog>();
       if (airport_catalog.attach_parameters()->passthrough())
@@ -206,7 +209,7 @@ namespace duckdb
             transaction.GetContext(), lookup_info.GetEntryName(), airport_catalog);
       }
     }
-    return GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
+    return result;
   }
 
   AirportCatalogSet &AirportSchemaEntry::GetCatalogSet(CatalogType type)

@@ -324,6 +324,7 @@ namespace duckdb
         airport_optimizer.optimize_function = AirportOptimizer::Optimize;
         config.optimizer_extensions.push_back(std::move(airport_optimizer));
 
+
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
         log_manager.RegisterLogType(make_uniq<AirportLogType>());
 
