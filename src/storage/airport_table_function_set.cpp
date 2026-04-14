@@ -273,6 +273,24 @@ namespace duckdb
     if (is_passthrough)
     {
       // Reconstruct: SELECT * FROM fn_name(positional_args, named := value, ...)
+      // Use ToString() for booleans/integers (bare values), ToSQLString() for strings.
+      auto val_to_sql = [](const Value &val) -> std::string {
+        switch (val.type().id())
+        {
+        case LogicalTypeId::BOOLEAN:
+        case LogicalTypeId::TINYINT:
+        case LogicalTypeId::SMALLINT:
+        case LogicalTypeId::INTEGER:
+        case LogicalTypeId::BIGINT:
+        case LogicalTypeId::FLOAT:
+        case LogicalTypeId::DOUBLE:
+        case LogicalTypeId::DECIMAL:
+          return val.ToString();
+        default:
+          return val.ToSQLString();
+        }
+      };
+
       auto fn_name = function_info.function->name();
       std::string sql = "SELECT * FROM " + fn_name + "(";
       bool first = true;
@@ -280,13 +298,13 @@ namespace duckdb
       {
         if (!first) sql += ", ";
         first = false;
-        sql += val.ToSQLString();
+        sql += val_to_sql(val);
       }
       for (auto &[key, val] : input.named_parameters)
       {
         if (!first) sql += ", ";
         first = false;
-        sql += key + " := " + val.ToSQLString();
+        sql += key + " := " + val_to_sql(val);
       }
       sql += ")";
 
@@ -764,9 +782,8 @@ namespace duckdb
 
   void AirportTableFunctionSet::LoadEntries(DatabaseInstance &db)
   {
-    // auto &transaction = AirportTransaction::Get(context, catalog);
-
     auto &airport_catalog = catalog.Cast<AirportCatalog>();
+    const bool is_passthrough = airport_catalog.attach_parameters()->passthrough();
 
     auto contents = AirportAPI::GetSchemaItems(
         db,
@@ -851,6 +868,43 @@ namespace duckdb
         for (auto &named_pair : input_types.named)
         {
           table_func.named_parameters.emplace(named_pair.first, named_pair.second);
+        }
+
+        // In passthrough mode: accept any positional or named parameter.
+        // The remote DuckDB does the real validation.
+        if (is_passthrough)
+        {
+          table_func.varargs = LogicalType::ANY;
+          // DuckDB's BindNamedParameters rejects unknown named params.
+          // Register all common DuckDB named params with ANY type so they pass through.
+          // This is a workaround until the extension can intercept before the binder.
+          static const vector<string> common_named_params = {
+            "auto_detect", "header", "delim", "sep", "quote", "escape", "nullstr",
+            "columns", "column_types", "dtypes", "types", "names", "column_names",
+            "dateformat", "timestampformat", "compression", "filename", "all_varchar",
+            "normalize_names", "parallel", "max_line_size", "maximum_line_size",
+            "sample_size", "skip", "new_line", "comment", "encoding", "force_not_null",
+            "buffer_size", "decimal_separator", "hive_partitioning", "hive_types",
+            "hive_types_autocast", "union_by_name", "rejects_table", "rejects_scan",
+            "rejects_limit", "store_rejects", "ignore_errors", "null_padding",
+            "allow_quoted_nulls", "auto_type_candidates", "strict_mode", "thousands",
+            "files_to_sniff",
+            // hostfs
+            "max_depth",
+            // read_text / read_blob
+            "max_size",
+            // http_client / webbed
+            "headers", "method", "body", "timeout",
+            // general
+            "format", "codec", "row_group_size", "file_size_bytes",
+          };
+          for (auto &p : common_named_params)
+          {
+            if (table_func.named_parameters.find(p) == table_func.named_parameters.end())
+            {
+              table_func.named_parameters.emplace(p, LogicalType::ANY);
+            }
+          }
         }
 
         // Need to store some function information along with the function so that when its called
