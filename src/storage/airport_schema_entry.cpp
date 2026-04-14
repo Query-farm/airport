@@ -195,12 +195,10 @@ namespace duckdb
     {
       return nullptr;
     }
-    auto result = GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
-    if (!result && lookup_info.GetCatalogType() == CatalogType::TABLE_FUNCTION_ENTRY)
+    // In passthrough mode, ALL table functions go through the passthrough path.
+    // Don't even check the server catalog — just forward as SQL.
+    if (lookup_info.GetCatalogType() == CatalogType::TABLE_FUNCTION_ENTRY)
     {
-      // In passthrough mode, create a catch-all function on the fly.
-      // It accepts any args and forwards the entire call as SQL via CMD descriptor
-      // (same path as airport_take_flight).
       auto &airport_catalog = catalog.Cast<AirportCatalog>();
       if (airport_catalog.attach_parameters()->passthrough())
       {
@@ -208,7 +206,7 @@ namespace duckdb
             transaction.GetContext(), lookup_info.GetEntryName(), airport_catalog);
       }
     }
-    return result;
+    return GetCatalogSet(lookup_info.GetCatalogType()).GetEntry(transaction.GetContext(), lookup_info);
   }
 
   AirportCatalogSet &AirportSchemaEntry::GetCatalogSet(CatalogType type)
