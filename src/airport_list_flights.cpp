@@ -2,10 +2,6 @@
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/vector.hpp"
-#include "duckdb/common/vector/flat_vector.hpp"
-#include "duckdb/common/vector/list_vector.hpp"
-#include "duckdb/common/vector/string_vector.hpp"
-#include "duckdb/common/vector/struct_vector.hpp"
 
 // Arrow includes.
 #include <arrow/flight/client.h>
@@ -173,11 +169,11 @@ namespace duckdb
       const auto max_rows = STANDARD_VECTOR_SIZE;
 
       auto &descriptor_entries = StructVector::GetEntries(output.data[0]);
-      auto descriptor_type_tag_data = FlatVector::GetData<uint8_t>(descriptor_entries[0]);
-      auto descriptor_cmd_data = FlatVector::GetData<string_t>(descriptor_entries[1]);
+      auto descriptor_type_tag_data = FlatVector::GetData<uint8_t>(*descriptor_entries[0]);
+      auto descriptor_cmd_data = FlatVector::GetData<string_t>(*descriptor_entries[1]);
 
       // Flat vector of list entries.
-      auto descriptor_path_data = ListVector::GetData(descriptor_entries[2]);
+      auto descriptor_path_data = ListVector::GetData(*descriptor_entries[2]);
       auto endpoint_data = ListVector::GetData(output.data[1]);
 
       unsigned int output_row_index = 0;
@@ -190,8 +186,8 @@ namespace duckdb
         case flight::FlightDescriptor::CMD:
         {
           descriptor_type_tag_data[output_row_index] = 0;
-          descriptor_cmd_data[output_row_index] = StringVector::AddStringOrBlob(descriptor_entries[1], descriptor.cmd);
-          FlatVector::Validity(descriptor_entries[2]).SetInvalid(output_row_index);
+          descriptor_cmd_data[output_row_index] = StringVector::AddStringOrBlob(*descriptor_entries[1], descriptor.cmd);
+          FlatVector::Validity(*descriptor_entries[2]).SetInvalid(output_row_index);
           descriptor_path_data[output_row_index].length = 0;
           descriptor_path_data[output_row_index].offset = 0;
         };
@@ -199,28 +195,28 @@ namespace duckdb
         case flight::FlightDescriptor::PATH:
         {
           descriptor_type_tag_data[output_row_index] = 1;
-          FlatVector::Validity(descriptor_entries[1]).SetInvalid(output_row_index);
+          FlatVector::Validity(*descriptor_entries[1]).SetInvalid(output_row_index);
 
-          auto current_size = ListVector::GetListSize(descriptor_entries[2]);
+          auto current_size = ListVector::GetListSize(*descriptor_entries[2]);
           auto new_size = current_size + descriptor.path.size();
 
-          if (ListVector::GetListCapacity(descriptor_entries[2]) < new_size)
+          if (ListVector::GetListCapacity(*descriptor_entries[2]) < new_size)
           {
-            ListVector::Reserve(descriptor_entries[2], new_size);
+            ListVector::Reserve(*descriptor_entries[2], new_size);
           }
 
-          auto &path_values = ListVector::GetEntry(descriptor_entries[2]);
+          auto &path_values = ListVector::GetEntry(*descriptor_entries[2]);
           auto path_parts = FlatVector::GetData<string_t>(path_values);
 
           for (size_t i = 0; i < descriptor.path.size(); i++)
           {
-            path_parts[current_size + i] = StringVector::AddString(ListVector::GetEntry(descriptor_entries[2]), descriptor.path[i]);
+            path_parts[current_size + i] = StringVector::AddString(ListVector::GetEntry(*descriptor_entries[2]), descriptor.path[i]);
           }
 
           descriptor_path_data[output_row_index].length = descriptor.path.size();
           descriptor_path_data[output_row_index].offset = current_size;
 
-          ListVector::SetListSize(descriptor_entries[2], new_size);
+          ListVector::SetListSize(*descriptor_entries[2], new_size);
         }
         break;
         default:
@@ -238,16 +234,16 @@ namespace duckdb
 
         auto &endpoint_entries = StructVector::GetEntries(ListVector::GetEntry(output.data[1]));
 
-        auto endpoint_ticket_data = FlatVector::GetData<string_t>(endpoint_entries[0]);
-        auto endpoint_location_data = ListVector::GetData(endpoint_entries[1]);
-        auto endpoint_expiration_data = FlatVector::GetData<int64_t>(endpoint_entries[2]);
-        auto endpoint_metadata_data = FlatVector::GetData<string_t>(endpoint_entries[3]);
+        auto endpoint_ticket_data = FlatVector::GetData<string_t>(*endpoint_entries[0]);
+        auto endpoint_location_data = ListVector::GetData(*endpoint_entries[1]);
+        auto endpoint_expiration_data = FlatVector::GetData<int64_t>(*endpoint_entries[2]);
+        auto endpoint_metadata_data = FlatVector::GetData<string_t>(*endpoint_entries[3]);
 
         // Lets deal with the endpoints.
         for (size_t endpoint_index = 0; endpoint_index < flight_info->endpoints().size(); endpoint_index++)
         {
           auto endpoint = flight_info->endpoints()[endpoint_index];
-          endpoint_ticket_data[endpoint_list_current_size + endpoint_index] = StringVector::AddStringOrBlob(endpoint_entries[0], endpoint.ticket.ticket);
+          endpoint_ticket_data[endpoint_list_current_size + endpoint_index] = StringVector::AddStringOrBlob(*endpoint_entries[0], endpoint.ticket.ticket);
           if (endpoint.expiration_time.has_value())
           {
             endpoint_expiration_data[endpoint_list_current_size + endpoint_index] = endpoint.expiration_time.value().time_since_epoch().count();
@@ -255,29 +251,29 @@ namespace duckdb
           else
           {
             // No expiration is set.
-            FlatVector::Validity(endpoint_entries[2]).SetInvalid(endpoint_list_current_size + endpoint_index);
+            FlatVector::Validity(*endpoint_entries[2]).SetInvalid(endpoint_list_current_size + endpoint_index);
           }
-          endpoint_metadata_data[endpoint_list_current_size + endpoint_index] = StringVector::AddStringOrBlob(endpoint_entries[3], endpoint.app_metadata);
+          endpoint_metadata_data[endpoint_list_current_size + endpoint_index] = StringVector::AddStringOrBlob(*endpoint_entries[3], endpoint.app_metadata);
 
           // Now deal with the locations of this endpoint.
-          auto endpoint_location_current_size = ListVector::GetListSize(endpoint_entries[1]);
+          auto endpoint_location_current_size = ListVector::GetListSize(*endpoint_entries[1]);
           auto endpoint_location_new_size = endpoint_location_current_size + endpoint.locations.size();
-          if (ListVector::GetListCapacity(endpoint_entries[1]) < endpoint_location_new_size)
+          if (ListVector::GetListCapacity(*endpoint_entries[1]) < endpoint_location_new_size)
           {
-            ListVector::Reserve(endpoint_entries[1], endpoint_location_new_size);
+            ListVector::Reserve(*endpoint_entries[1], endpoint_location_new_size);
           }
 
-          auto endpoint_location_parts = FlatVector::GetData<string_t>(ListVector::GetEntry(endpoint_entries[1]));
+          auto endpoint_location_parts = FlatVector::GetData<string_t>(ListVector::GetEntry(*endpoint_entries[1]));
 
           for (size_t location_index = 0; location_index < endpoint.locations.size(); location_index++)
           {
-            endpoint_location_parts[endpoint_location_current_size + location_index] = StringVector::AddStringOrBlob(ListVector::GetEntry(endpoint_entries[1]), endpoint.locations[location_index].ToString());
+            endpoint_location_parts[endpoint_location_current_size + location_index] = StringVector::AddStringOrBlob(ListVector::GetEntry(*endpoint_entries[1]), endpoint.locations[location_index].ToString());
           }
 
           endpoint_location_data[endpoint_list_current_size].length = endpoint.locations.size();
           endpoint_location_data[endpoint_list_current_size].offset = endpoint_location_current_size;
 
-          ListVector::SetListSize(endpoint_entries[1], endpoint_location_new_size);
+          ListVector::SetListSize(*endpoint_entries[1], endpoint_location_new_size);
         }
 
         endpoint_data[output_row_index].length = flight_info->endpoints().size();

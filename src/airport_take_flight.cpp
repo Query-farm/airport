@@ -1,7 +1,6 @@
 #include "airport_extension.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/types/vector.hpp"
-#include "duckdb/common/vector/flat_vector.hpp"
 
 // Arrow includes.
 #include <arrow/flight/client.h>
