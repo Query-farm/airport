@@ -7,6 +7,7 @@
 #include <arrow/flight/client.h>
 
 #include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 
 #include "airport_json_common.hpp"
 #include "airport_json_serializer.hpp"
@@ -220,7 +221,25 @@ namespace duckdb
 
     do_action_functions.AddFunction(without_parameter);
 
-    loader.RegisterFunction(do_action_functions);
+    CreateTableFunctionInfo info(do_action_functions);
+
+    FunctionDescription with_parameter_desc;
+    with_parameter_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
+    with_parameter_desc.parameter_names = {"location", "action_name", "parameter"};
+    with_parameter_desc.description = "Execute an Arrow Flight action on a server with a parameter.";
+    with_parameter_desc.examples = {"SELECT * FROM airport_action('grpc://localhost:8815', 'my_action', 'param');"};
+    with_parameter_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(with_parameter_desc));
+
+    FunctionDescription without_parameter_desc;
+    without_parameter_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR};
+    without_parameter_desc.parameter_names = {"location", "action_name"};
+    without_parameter_desc.description = "Execute an Arrow Flight action on a server.";
+    without_parameter_desc.examples = {"SELECT * FROM airport_action('grpc://localhost:8815', 'my_action');"};
+    without_parameter_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(without_parameter_desc));
+
+    loader.RegisterFunction(info);
   }
 
 }
