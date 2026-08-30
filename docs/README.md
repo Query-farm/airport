@@ -10,7 +10,7 @@ The **Airport** extension brings [Arrow Flight](https://arrow.apache.org/docs/fo
 
 Full documentation, including installation, usage, the function reference, and cookbook examples, is available at:
 
-**[query.farm/products/extensions/airport](https://query.farm/products/extensions/airport)**
+**[https://query.farm/products/extensions/airport](https://query.farm/products/extensions/airport)**
 
 ## Installation
 
