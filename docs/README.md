@@ -1,12 +1,16 @@
 # Airport Extension for DuckDB
 
-The **Airport** extension brings [Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) support to [DuckDB](https://duckdb.org), enabling DuckDB to query, modify, and store data via Arrow Flight servers. A DuckDB extension is a plugin that expands DuckDB's core functionality by adding new capabilities.
+[![DuckDB Extension](https://query.farm/media-kit/shields/duckdb-extension.svg)](https://query.farm/products/extensions/airport)
+[![DuckDB](https://img.shields.io/badge/DuckDB-community_extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://duckdb.org/community_extensions/extensions/airport.html)
+[![v1.5 build](https://github.com/Query-farm/airport/actions/workflows/MainDistributionPipeline.yml/badge.svg?branch=v1.5)](https://github.com/Query-farm/airport/actions/workflows/MainDistributionPipeline.yml?query=branch%3Av1.5)
 
-To understand the rationale behind the development of this extension, check out the [motivation for creating the extension](https://airport.query.farm/motivation.html).
+The **Airport** extension brings [Arrow Flight](https://arrow.apache.org/docs/format/Flight.html) support to [DuckDB](https://duckdb.org), enabling DuckDB to query, modify, and store data via Arrow Flight servers.
 
-# Documentation
+## Documentation
 
-Visit the [documentation for this extension](https://airport.query.farm).
+Full documentation, including installation, usage, the function reference, and cookbook examples, is available at:
+
+**[query.farm/products/extensions/airport](https://query.farm/products/extensions/airport)**
 
 ## Installation
 
@@ -20,7 +24,7 @@ LOAD airport;
 ```sh
 # Clone this repo with submodules.
 # duckdb and extension-ci-tools are submodules.
-git clone --recursive git@github.com:Query-farm/duckdb-airport-extension
+git clone --recursive git@github.com:Query-farm/airport
 
 # Clone the vcpkg repo
 git clone https://github.com/Microsoft/vcpkg.git
@@ -54,7 +58,7 @@ brew install bison cmake llvm
 export CXX=/opt/homebrew/opt/llvm/bin/clang++
 ```
 
-If you are building against the `main` branch of DuckDB you need to be aware that.  Airport now relies on the `httpfs` extension for HTTPS support. Although it builds `httpfs`, it doesn’t link it automatically. As a result, during development, you’ll need to manually copy the built `httpfs` extension into your local DuckDB extension directory—usually `~/.duckdb/extensions/`.
+If you are building against the `main` branch of DuckDB, note that Airport relies on the `httpfs` extension for HTTPS support. Although it builds `httpfs`, it doesn't link it automatically. As a result, during development, you'll need to manually copy the built `httpfs` extension into your local DuckDB extension directory—usually `~/.duckdb/extensions/`.
 
 The following script will copy the necessary extensions to the correct location:
 
@@ -66,17 +70,9 @@ mkdir -p ~/.duckdb/extensions/$snapshot/$platform/
 cp -r ./build/debug/repository/$snapshot ~/.duckdb/extensions/$snapshot
 ```
 
-
-## Running the extension
-
-To run the extension code, simply start the shell with `./build/release/duckdb`. This duckdb shell will have the extension pre-loaded.
-
-Now we can use the features from the extension directly in DuckDB.
-
 ## Running the tests
-Different tests can be created for DuckDB extensions. The primary way of testing DuckDB extensions should be the SQL tests in `./test/sql`. These SQL tests can be run using:
+The primary way of testing this extension is the SQL tests in `./test/sql`, run with:
 
 ```sh
 make test
 ```
-
