@@ -1,8 +1,10 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://query.farm/media-kit/logo/wordmark-dark.svg">
-    <img alt="Query.Farm" src="https://query.farm/media-kit/logo/wordmark-light.svg" height="48">
-  </picture>
+  <a href="https://query.farm">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://query.farm/media-kit/logo/wordmark-dark.svg">
+      <img alt="Query.Farm" src="https://query.farm/media-kit/logo/wordmark-light.svg" height="64">
+    </picture>
+  </a>
   &nbsp;&nbsp;
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="logos/duckdb-inline-dark.svg">
