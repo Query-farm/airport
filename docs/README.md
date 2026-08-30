@@ -5,16 +5,10 @@
       <img alt="Query.Farm" src="https://query.farm/media-kit/logo/wordmark-light.svg" height="64">
     </picture>
   </a>
-  &nbsp;&nbsp;
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="logos/duckdb-inline-dark.svg">
-    <img alt="DuckDB" src="logos/duckdb-inline-light.svg" height="48">
-  </picture>
 </p>
 
 # Airport Extension for DuckDB
 
-[![DuckDB Extension](https://query.farm/media-kit/shields/duckdb-extension.svg)](https://query.farm/products/extensions/airport)
 [![DuckDB](https://img.shields.io/badge/DuckDB-community_extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://duckdb.org/community_extensions/extensions/airport.html)
 [![v1.5 build](https://github.com/Query-farm/airport/actions/workflows/MainDistributionPipeline.yml/badge.svg?branch=v1.5)](https://github.com/Query-farm/airport/actions/workflows/MainDistributionPipeline.yml?query=branch%3Av1.5)
 
