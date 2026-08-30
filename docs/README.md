@@ -1,3 +1,15 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://query.farm/media-kit/logo/wordmark-dark.svg">
+    <img alt="Query.Farm" src="https://query.farm/media-kit/logo/wordmark-light.svg" height="48">
+  </picture>
+  &nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logos/duckdb-inline-dark.svg">
+    <img alt="DuckDB" src="logos/duckdb-inline-light.svg" height="48">
+  </picture>
+</p>
+
 # Airport Extension for DuckDB
 
 [![DuckDB Extension](https://query.farm/media-kit/shields/duckdb-extension.svg)](https://query.farm/products/extensions/airport)
