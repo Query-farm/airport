@@ -14,6 +14,7 @@
 #include <arrow/filesystem/localfs.h>
 
 #include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
 #include "duckdb/common/types/uuid.hpp"
 #include "airport_flight_exception.hpp"
@@ -1169,7 +1170,24 @@ namespace duckdb
 
     take_flight_function_set.AddFunction(take_flight_function_with_pointer);
 
-    loader.RegisterFunction(take_flight_function_set);
+    CreateTableFunctionInfo info(take_flight_function_set);
+
+    FunctionDescription with_descriptor_desc;
+    with_descriptor_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::ANY};
+    with_descriptor_desc.parameter_names = {"location", "descriptor"};
+    with_descriptor_desc.description = "Read an Arrow Flight stream from a server using a flight descriptor (path or command).";
+    with_descriptor_desc.examples = {"SELECT * FROM airport_take_flight('grpc://localhost:8815', ['my_table']);"};
+    with_descriptor_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(with_descriptor_desc));
+
+    FunctionDescription with_pointer_desc;
+    with_pointer_desc.parameter_types = {LogicalType::POINTER, LogicalType::POINTER, LogicalType::VARCHAR};
+    with_pointer_desc.parameter_names = {"table_pointer", "table_entry_pointer", "transaction_id"};
+    with_pointer_desc.description = "Read an Arrow Flight stream from a server using internal pointers (used by the catalog).";
+    with_pointer_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(with_pointer_desc));
+
+    loader.RegisterFunction(info);
   }
 
   std::string AirportNameForField(const string &name, idx_t col_idx)

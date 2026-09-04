@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.5)
 # Set extension name here
 set(TARGET_NAME airport)
 
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to enforce" FORCE)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
 set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 

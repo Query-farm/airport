@@ -11,6 +11,7 @@
 #include <arrow/flight/client.h>
 
 #include "duckdb/main/secret/secret_manager.hpp"
+#include "duckdb/parser/parsed_data/create_table_function_info.hpp"
 
 #include "airport_json_common.hpp"
 #include "airport_json_serializer.hpp"
@@ -209,7 +210,7 @@ namespace duckdb
             ListVector::Reserve(descriptor_entries[2], new_size);
           }
 
-          auto path_values = ListVector::GetEntry(descriptor_entries[2]);
+          auto &path_values = ListVector::GetEntry(descriptor_entries[2]);
           auto path_parts = FlatVector::GetData<string_t>(path_values);
 
           for (size_t i = 0; i < descriptor.path.size(); i++)
@@ -378,7 +379,25 @@ namespace duckdb
     without_criteria.filter_pushdown = false;
     list_flights_functions.AddFunction(without_criteria);
 
-    loader.RegisterFunction(list_flights_functions);
+    CreateTableFunctionInfo info(list_flights_functions);
+
+    FunctionDescription with_criteria_desc;
+    with_criteria_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR};
+    with_criteria_desc.parameter_names = {"location", "criteria"};
+    with_criteria_desc.description = "List the flights available on an Arrow Flight server, filtered by criteria.";
+    with_criteria_desc.examples = {"SELECT * FROM airport_flights('grpc://localhost:8815', '');"};
+    with_criteria_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(with_criteria_desc));
+
+    FunctionDescription without_criteria_desc;
+    without_criteria_desc.parameter_types = {LogicalType::VARCHAR};
+    without_criteria_desc.parameter_names = {"location"};
+    without_criteria_desc.description = "List the flights available on an Arrow Flight server.";
+    without_criteria_desc.examples = {"SELECT * FROM airport_flights('grpc://localhost:8815');"};
+    without_criteria_desc.categories = {"airport"};
+    info.descriptions.push_back(std::move(without_criteria_desc));
+
+    loader.RegisterFunction(info);
   }
 
 }
