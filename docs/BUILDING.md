@@ -55,3 +55,43 @@ The primary way of testing this extension is the SQL tests in `./test/sql`, run 
 ```sh
 make test
 ```
+
+The contributor regression tests start private Flight servers on loopback ports.
+They exercise endpoint callback errors, nested-field action serialization, and
+table-input exchanges across multiple input pipelines. Run them against the CLI
+from the build being tested:
+
+```sh
+uv venv --python 3.12 .test-venv
+uv pip install --python .test-venv/bin/python pytest pyarrow msgpack query-farm-airport-test-server==0.1.1
+AIRPORT_DUCKDB="$PWD/build/debug/duckdb" .test-venv/bin/python -m pytest -q test/python
+```
+
+Most SQL tests also require an Airport test server. With one running on a local
+port, refresh the installed Airport binary after rebuilding, then run the debug
+suite with the built extensions available to the test runner:
+
+```sh
+./build/debug/duckdb -unsigned -c "FORCE INSTALL airport FROM '$PWD/build/debug/repository';"
+AIRPORT_TEST_SERVER=grpc://127.0.0.1:8815 \
+DUCKDB_TEST_AUTOLOADING=all \
+DUCKDB_TEST_STATICALLY_LOADED_EXTENSIONS='["core_functions","parquet","airport"]' \
+make test_debug
+```
+
+Check the test summary for skipped requirements: missing extensions or an unset
+`AIRPORT_TEST_SERVER` can otherwise cause integration tests to be skipped.
+
+Table-input exchanges stream responses directly through the input pipeline. A
+dependent source pipeline closes the Flight writer and streams its final output
+after all input pipelines finish, including every `UNION ALL` branch. A downstream
+`LIMIT` can stop the input early and cancel the exchange; Airport does not
+materialize the input or results.
+
+Local endpoint delegation supports table functions with the scan API. Functions
+that only implement the in/out API, including `range` and `generate_series`,
+produce a `NotImplementedException` rather than crashing the client.
+
+For the `add_field` action, `column_path` identifies the parent struct (including
+any nested parents); the single field in `column_schema` contains the new leaf
+field's name and type.

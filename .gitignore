@@ -6,5 +6,7 @@ duckdb_unittest_tempdir/
 .DS_Store
 testext
 test/python/__pycache__/
+.test-venv/
+.pytest_cache/
 .Rhistory
 vcpkg

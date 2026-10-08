@@ -1,4 +1,6 @@
 #include "airport_extension.hpp"
+#include "airport_table_in_out.hpp"
+#include "duckdb/planner/planner_extension.hpp"
 #include "duckdb.hpp"
 
 #include "duckdb/main/secret/secret_manager.hpp"
@@ -17,7 +19,7 @@
 #include "airport_logging.hpp"
 #include "query_farm_telemetry.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "2026072501"
+#define AIRPORT_EXTENSION_VERSION "2026100801"
 
 namespace duckdb
 {
@@ -305,6 +307,9 @@ namespace duckdb
         OptimizerExtension airport_optimizer;
         airport_optimizer.optimize_function = AirportOptimizer::Optimize;
         OptimizerExtension::Register(config, std::move(airport_optimizer));
+        PlannerExtension airport_planner;
+        airport_planner.post_bind_function = AirportPlanTableInOut;
+        PlannerExtension::Register(config, std::move(airport_planner));
         //        config.optimizer_extensions.push_back(std::move(airport_optimizer));
 
         auto &log_manager = loader.GetDatabaseInstance().GetLogManager();

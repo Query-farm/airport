@@ -1,0 +1,55 @@
+# name: test/sql/airport-table-in-out-pipelines.test
+# description: Flight exchanges finalize after all input pipelines and drain complete batches
+# group: [airport]
+
+require httpfs
+
+require airport
+
+require-env AIRPORT_TEST_SERVER
+
+statement ok
+CREATE SECRET (TYPE airport, auth_token uuid(), SCOPE '${AIRPORT_TEST_SERVER}');
+
+statement ok
+CALL airport_action('${AIRPORT_TEST_SERVER}', 'create_database', 'test1');
+
+statement ok
+ATTACH 'test1' (TYPE airport, location '${AIRPORT_TEST_SERVER}');
+
+statement ok
+SET threads=8;
+
+statement ok
+CREATE TEMP TABLE words AS SELECT 'hello' AS txt;
+
+# Each branch is a separate input pipeline. The final row is emitted only once.
+query TT rowsort
+SELECT * FROM test1.utils.test_table_in_out('Sloane', (SELECT txt FROM words UNION ALL SELECT 'world'));
+----
+Sloane	hello
+Sloane	world
+last	row
+
+# An exactly full input batch must not trigger another read before sending input.
+query II
+SELECT count(*), sum(i) FROM test1.utils.test_table_in_out_long((SELECT i FROM range(2048) t(i) UNION ALL SELECT 2048));
+----
+20490	20981760
+
+# Even an empty input must close the writer and collect final output.
+query TT
+SELECT * FROM test1.utils.test_table_in_out('Sloane', (SELECT ''::VARCHAR AS txt WHERE false));
+----
+last	row
+
+# Correct stream lifetime cannot depend on the optimizer being enabled.
+statement ok
+PRAGMA disable_optimizer;
+
+query TT rowsort
+SELECT * FROM test1.utils.test_table_in_out('Sloane', (SELECT txt FROM words UNION ALL SELECT 'world'));
+----
+Sloane	hello
+Sloane	world
+last	row

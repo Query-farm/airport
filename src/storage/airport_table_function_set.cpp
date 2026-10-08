@@ -1,4 +1,5 @@
 #include "duckdb.hpp"
+#include "airport_table_in_out.hpp"
 #include "duckdb/catalog/catalog_entry/scalar_function_catalog_entry.hpp"
 #include "duckdb/catalog/catalog_entry/table_function_catalog_entry.hpp"
 #include "duckdb/catalog/dependency_list.hpp"
@@ -388,8 +389,25 @@ namespace duckdb
 
   struct AirportDynamicTableInOutGlobalState : public GlobalTableFunctionState, public AirportExchangeGlobalState
   {
+    ~AirportDynamicTableInOutGlobalState() override
+    {
+      // A downstream LIMIT or an interrupted query can abandon the exchange
+      // before EOF. Cancel before destroying the writer so cleanup does not
+      // wait for responses the query no longer needs.
+      if (!finished && local_state)
+      {
+        auto &state = local_state->Cast<AirportArrowScanLocalState>();
+        auto &reader = std::get<std::shared_ptr<arrow::flight::FlightStreamReader>>(state.reader());
+        if (reader)
+        {
+          reader->Cancel();
+        }
+      }
+    }
+
     mutable mutex lock;
     bool continuing_current_chunk = false;
+    bool finished = false;
   };
 
   struct AirportTableFunctionInOutParameters
@@ -610,17 +628,14 @@ namespace duckdb
                                         output,
                                         false);
       state.chunk_offset += output_size;
-      if (state.chunk_offset == (idx_t)state.chunk->arrow_array.length)
-      {
-        state.chunk_offset = 0;
-      }
       output.Verify();
 
-      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != (idx_t)state.chunk->arrow_array.length)
+      if (state.chunk_offset < (idx_t)state.chunk->arrow_array.length)
       {
         global_state.continuing_current_chunk = true;
         return OperatorResultType::HAVE_MORE_OUTPUT;
       }
+      state.chunk_offset = 0;
 
       auto &last_app_metadata = data.last_app_metadata;
       if (last_app_metadata && last_app_metadata->Equals(chunk_continues_buffer))
@@ -679,17 +694,14 @@ namespace duckdb
         state.chunk_offset += output_size;
       }
 
-      if (state.chunk_offset == (idx_t)state.chunk->arrow_array.length)
-      {
-        state.chunk_offset = 0;
-      }
       output.Verify();
 
-      if (output_size == STANDARD_VECTOR_SIZE && state.chunk_offset != (idx_t)state.chunk->arrow_array.length)
+      if (state.chunk_offset < (idx_t)state.chunk->arrow_array.length)
       {
         global_state.continuing_current_chunk = true;
         return OperatorFinalizeResultType::HAVE_MORE_OUTPUT;
       }
+      state.chunk_offset = 0;
 
       auto &last_app_metadata = data.last_app_metadata;
       if (last_app_metadata && last_app_metadata->Equals(chunk_continues_buffer))
@@ -701,7 +713,13 @@ namespace duckdb
     }
 
     global_state.continuing_current_chunk = false;
+    global_state.finished = true;
     return OperatorFinalizeResultType::FINISHED;
+  }
+
+  bool IsAirportTableInOutFunction(const TableFunction &function)
+  {
+    return function.in_out_function == AirportTakeFlightInOut;
   }
 
   void AirportTableFunctionSet::LoadEntries(ClientContext &context)
