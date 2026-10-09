@@ -1,4 +1,5 @@
 #include "airport_extension.hpp"
+#include "airport_function_description.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/vector.hpp"
@@ -376,18 +377,17 @@ namespace duckdb
     list_flights_functions.AddFunction(without_criteria);
 
     CreateTableFunctionInfo info(list_flights_functions);
+    info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
 
     FunctionDescription with_criteria_desc;
-    with_criteria_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR};
-    with_criteria_desc.parameter_names = {"location", "criteria"};
+    AirportSetTableFunctionParameters(with_criteria_desc, with_criteria, {"location", "criteria"});
     with_criteria_desc.description = "List the flights available on an Arrow Flight server, filtered by criteria.";
     with_criteria_desc.examples = {"SELECT * FROM airport_flights('grpc://localhost:8815', '');"};
     with_criteria_desc.categories = {"airport"};
     info.descriptions.push_back(std::move(with_criteria_desc));
 
     FunctionDescription without_criteria_desc;
-    without_criteria_desc.parameter_types = {LogicalType::VARCHAR};
-    without_criteria_desc.parameter_names = {"location"};
+    AirportSetTableFunctionParameters(without_criteria_desc, without_criteria, {"location"});
     without_criteria_desc.description = "List the flights available on an Arrow Flight server.";
     without_criteria_desc.examples = {"SELECT * FROM airport_flights('grpc://localhost:8815');"};
     without_criteria_desc.categories = {"airport"};

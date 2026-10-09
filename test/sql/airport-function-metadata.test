@@ -1,0 +1,78 @@
+# name: test/sql/airport-function-metadata.test
+# description: Airport functions can be discovered and understood through SQL
+# group: [airport]
+
+require httpfs
+
+require airport
+
+statement ok
+CREATE TEMP TABLE airport_function_metadata AS
+SELECT function_name, function_type, description, parameters, parameter_types, examples, categories
+FROM duckdb_functions()
+WHERE starts_with(function_name, 'airport_');
+
+# Six names, including both scalar functions and the table macro. Every overload
+# has a description and category; only the internal pointer overload has no
+# runnable SQL example because callers cannot construct its catalog pointers.
+query IIIII
+SELECT count(DISTINCT function_name), count(*),
+       count(*) FILTER (WHERE length(description) > 0),
+       count(*) FILTER (WHERE len(examples) > 0),
+       count(*) FILTER (WHERE list_contains(categories, 'airport'))
+FROM airport_function_metadata;
+----
+6	9	9	8	9
+
+# Names are meaningful for optional named arguments as well as positional ones.
+query I
+SELECT count(*)
+FROM airport_function_metadata, unnest(parameters) AS p(name)
+WHERE name IS NULL OR name = '' OR regexp_full_match(name, 'col[0-9]+');
+----
+0
+
+query I
+WITH arguments AS (
+    SELECT unnest(parameters) AS name, unnest(parameter_types) AS type
+    FROM airport_function_metadata
+    WHERE function_type = 'table'
+)
+SELECT count(*) FROM arguments WHERE name = 'auth_token' AND type = 'VARCHAR';
+----
+6
+
+# Keep the macro's existing untyped signature and expose its parameter name.
+query TTT
+SELECT function_name, function_type, parameters
+FROM airport_function_metadata
+WHERE function_name IN ('airport_databases', 'airport_user_agent', 'airport_version')
+ORDER BY function_name;
+----
+airport_databases	table_macro	[server_location]
+airport_user_agent	scalar	[]
+airport_version	scalar	[]
+
+# Table and table-macro examples must be complete SQL statements.
+query I
+SELECT count(*)
+FROM airport_function_metadata, unnest(examples) AS e(example)
+WHERE function_type IN ('table', 'table_macro')
+  AND starts_with(example, 'SELECT * FROM ');
+----
+6
+
+query TT
+SELECT function_name, examples[1]
+FROM airport_function_metadata
+WHERE function_name IN ('airport_user_agent', 'airport_version')
+ORDER BY function_name;
+----
+airport_user_agent	airport_user_agent()
+airport_version	airport_version()
+
+# These examples execute without a Flight server or database attachment.
+query II
+SELECT starts_with(airport_user_agent(), 'airport/'), length(airport_version()) > 0;
+----
+1	1

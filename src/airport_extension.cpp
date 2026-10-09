@@ -7,6 +7,7 @@
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/storage/storage_extension.hpp"
 #include "duckdb/parser/parsed_data/create_macro_info.hpp"
+#include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/function/table_macro_function.hpp"
 #include "duckdb/catalog/default/default_functions.hpp"
 #include "storage/airport_catalog.hpp"
@@ -19,7 +20,7 @@
 #include "airport_logging.hpp"
 #include "query_farm_telemetry.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "2026100801"
+#define AIRPORT_EXTENSION_VERSION "2026100802"
 
 namespace duckdb
 {
@@ -210,23 +211,30 @@ namespace duckdb
 
     static void AirportAddSimpleFunctions(ExtensionLoader &loader)
     {
-        loader.RegisterFunction(
-            ScalarFunction(
-                "airport_user_agent",
-                {},
-                LogicalType::VARCHAR,
-                get_user_agent));
+        CreateScalarFunctionInfo user_agent_info(
+            ScalarFunction("airport_user_agent", {}, LogicalType::VARCHAR, get_user_agent));
+        user_agent_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        FunctionDescription user_agent_desc;
+        user_agent_desc.description = "Return the Airport client identifier sent in the airport-user-agent header of Arrow Flight requests.";
+        user_agent_desc.examples = {"airport_user_agent()"};
+        user_agent_desc.categories = {"airport"};
+        user_agent_info.descriptions.push_back(std::move(user_agent_desc));
+        loader.RegisterFunction(std::move(user_agent_info));
 
-        loader.RegisterFunction(
-            ScalarFunction(
-                "airport_version",
-                {},
-                LogicalType::VARCHAR,
-                get_airport_version));
+        CreateScalarFunctionInfo version_info(
+            ScalarFunction("airport_version", {}, LogicalType::VARCHAR, get_airport_version));
+        version_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
+        FunctionDescription version_desc;
+        version_desc.description = "Return the version of the loaded Airport extension.";
+        version_desc.examples = {"airport_version()"};
+        version_desc.categories = {"airport"};
+        version_info.descriptions.push_back(std::move(version_desc));
+        loader.RegisterFunction(std::move(version_info));
     }
 
     static void RegisterTableMacro(ExtensionLoader &loader, const string &name, const string &query,
-                                   const vector<string> &params, const child_list_t<Value> &named_params)
+                                   const vector<string> &params, const child_list_t<Value> &named_params,
+                                   const string &description, const vector<string> &examples)
     {
         Parser parser;
         parser.ParseQuery(query);
@@ -251,6 +259,16 @@ namespace duckdb
         info.internal = true;
         info.macros.push_back(std::move(func));
 
+        FunctionDescription desc;
+        // The macro parameters remain untyped; ANY also matches DuckDB's
+        // UNKNOWN parameter type when selecting the catalog description.
+        desc.parameter_types = vector<LogicalType>(params.size(), LogicalType::ANY);
+        desc.parameter_names = params;
+        desc.description = description;
+        desc.examples = examples;
+        desc.categories = {"airport"};
+        info.descriptions.push_back(std::move(desc));
+
         loader.RegisterFunction(info);
     }
 
@@ -268,7 +286,9 @@ namespace duckdb
             "select * from airport_take_flight(server_location, ['__databases'])",
             //            "select * from airport_take_flight(server_location, ['__databases'], auth_token=auth_token, secret=secret, headers=headers)",
             {"server_location"},
-            named_params);
+            named_params,
+            "List the databases advertised by an Arrow Flight server through its __databases flight.",
+            {"SELECT * FROM airport_databases('grpc://localhost:8815');"});
     }
 
     static void LoadInternal(ExtensionLoader &loader)
