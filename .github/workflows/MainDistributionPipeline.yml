@@ -14,11 +14,11 @@ concurrency:
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
-    uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@main
+    uses: Query-farm/extension-ci-tools/.github/workflows/_extension_distribution.yml@query-farm
     with:
       duckdb_version: v2.0-cyanoptera
       extension_name: airport
-      ci_tools_version: main
+      ci_tools_version: query-farm
       extra_toolchains: parser_tools
       exclude_archs: wasm_mvp;wasm_eh;wasm_threads;
       vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
@@ -31,3 +31,4 @@ jobs:
         }}
       VCPKG_CACHING_AWS_ENDPOINT_URL: ${{ secrets.VCPKG_CACHING_AWS_ENDPOINT_URL }}
       VCPKG_CACHING_AWS_DEFAULT_REGION: ${{ secrets.VCPKG_CACHING_AWS_DEFAULT_REGION}}
+      ccache_remote_token: ${{ secrets.QUERY_FARM_CCACHE_TOKEN }}
