@@ -2,6 +2,7 @@
 
 #include "duckdb/logging/logging.hpp"
 #include "duckdb/logging/log_type.hpp"
+#include "duckdb/logging/logger.hpp"
 #include "duckdb/common/string_util.hpp"
 
 namespace duckdb

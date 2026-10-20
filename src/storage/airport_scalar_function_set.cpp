@@ -109,7 +109,7 @@ namespace duckdb
     auto contents = AirportAPI::GetSchemaItems(
         db,
         catalog.GetDBPath(),
-        schema.name,
+        schema.name.GetIdentifierName(),
         schema.serialized_source(),
         cache_directory_,
         airport_catalog.attach_parameters());
@@ -128,7 +128,7 @@ namespace duckdb
 
     for (const auto &pair : functions_by_name)
     {
-      ScalarFunctionSet flight_func_set(pair.first.name);
+      ScalarFunctionSet flight_func_set(Identifier(pair.first.name));
 
       // FIXME: need a way to specify the function stability.
       for (const auto &function : pair.second)
@@ -142,24 +142,24 @@ namespace duckdb
                                           AirportScalarFunctionProcessChunk,
                                           AirportScalarFunctionBind,
                                           nullptr,
-                                          nullptr,
                                           AirportScalarFunctionInitLocalState,
                                           LogicalTypeId::INVALID,
                                           function.stability(),
                                           duckdb::FunctionNullHandling::DEFAULT_NULL_HANDLING,
                                           nullptr);
-        scalar_func.function_info = make_uniq<AirportScalarFunctionInfo>(function.name(),
-                                                                         function,
-                                                                         function.schema(),
-                                                                         function.input_schema(),
-                                                                         catalog);
+        scalar_func.SetExtraFunctionInfo<AirportScalarFunctionInfo>(function.name(),
+                                                                    function,
+                                                                    function.schema(),
+                                                                    function.input_schema(),
+                                                                    catalog);
+        // Remote scalar functions call an Arrow Flight server and can raise errors.
+        scalar_func.SetFallible();
 
         flight_func_set.AddFunction(scalar_func);
       }
 
       CreateScalarFunctionInfo info = CreateScalarFunctionInfo(flight_func_set);
-      info.catalog = pair.first.catalog_name;
-      info.schema = pair.first.schema_name;
+      info.SetQualification(Identifier(pair.first.catalog_name), Identifier(pair.first.schema_name));
 
       info.internal = true;
 

@@ -33,11 +33,11 @@ namespace duckdb
 
   AirportLocalScanData::AirportLocalScanData(std::string uri,
                                              ClientContext &context,
-                                             TableFunction &func,
+                                             shared_ptr<const TableFunction> func,
                                              const vector<LogicalType> &expected_return_types,
                                              const vector<string> &expected_return_names,
                                              const TableFunctionInitInput &init_input)
-      : AirportLocalScanData({uri}, {}, context, func, expected_return_types, expected_return_names, init_input)
+      : AirportLocalScanData({Value(uri)}, {}, context, std::move(func), expected_return_types, expected_return_names, init_input)
   {
   }
 
@@ -168,10 +168,10 @@ namespace duckdb
     }
 
     // Now we need to get the named parameters.
-    named_parameter_map_t named_params;
+    named_argument_map_t named_params;
     for (idx_t parameter_idx = 0; parameter_idx < named_parameter_indexes.size(); parameter_idx++)
     {
-      named_params[parameter_names[parameter_idx]] = args_and_parameters_chunk.data[named_parameter_indexes[parameter_idx]].GetValue(0);
+      named_params[Identifier(parameter_names[parameter_idx])] = args_and_parameters_chunk.data[named_parameter_indexes[parameter_idx]].GetValue(0);
     }
 
     AirportDuckDBFunctionCallParsed result(
@@ -183,26 +183,30 @@ namespace duckdb
 
   AirportLocalScanData::AirportLocalScanData(
       vector<Value> argument_values,
-      named_parameter_map_t named_params,
+      named_argument_map_t named_params,
       ClientContext &context,
-      TableFunction &func,
+      shared_ptr<const TableFunction> func_p,
       const vector<LogicalType> &expected_return_types,
       const vector<string> &expected_return_names,
       const TableFunctionInitInput &init_input)
-      : table_function(func),
+      : table_function(std::move(func_p)),
         thread_context(context),
         execution_context(context, thread_context, nullptr),
         finished_chunk(false)
   {
+    auto &func = table_function;
     // Endpoint delegation only supports scan functions. Some table functions
     // (e.g. range) use the in/out API instead of a scan callback.
     if (!func.bind || !func.function)
     {
-      throw NotImplementedException("Airport: local endpoint table function '%s' does not support the scan API", func.name);
+      throw NotImplementedException("Airport: local endpoint table function '%s' does not support the scan API", func.GetName());
     }
 
     vector<LogicalType> input_types;
-    vector<string> input_names;
+    vector<Identifier> input_names;
+
+    func.GetSignature().FillNamedDefaults(context, named_params);
+    func.SetCallArguments(argument_values, named_params);
 
     TableFunctionRef empty;
     TableFunctionBindInput bind_input(
@@ -215,11 +219,13 @@ namespace duckdb
         func,
         empty);
 
+    vector<Identifier> bound_names;
     bind_data = func.bind(
         context,
         bind_input,
         return_types,
-        return_names);
+        bound_names);
+    return_names = IdentifiersToStrings(bound_names);
 
     // printf("Parquet names: %s\n", StringUtil::Join(return_names, ", ").c_str());
     // printf("Parquet types: %s\n", StringUtil::Join(return_types, return_types.size(), ", ", [](const LogicalType &type)
@@ -617,7 +623,7 @@ namespace duckdb
 
     for (auto &kv : input.named_parameters)
     {
-      auto loption = StringUtil::Lower(kv.first);
+      auto loption = StringUtil::Lower(kv.first.GetIdentifierName());
       if (loption == "auth_token")
       {
         auth_token_ = StringValue::Get(kv.second);

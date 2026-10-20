@@ -93,7 +93,7 @@ namespace duckdb
       ClientContext &context,
       const TableFunctionBindInput &input,
       vector<LogicalType> &return_types,
-      vector<string> &names,
+      vector<Identifier> &names,
       // So rather than the cached_flight_info_ptr here we can just have the cached schema.
       std::shared_ptr<arrow::Schema> schema,
       const std::optional<AirportTableFunctionFlightInfoParameters> &table_function_parameters,
@@ -214,18 +214,23 @@ namespace duckdb
         table_entry,
         nullptr);
 
+    vector<string> string_names;
     AirportExamineSchema(context,
                          ret->schema_root,
                          &ret->arrow_table,
                          &return_types,
-                         &names,
+                         &string_names,
                          nullptr,
                          &ret->rowid_column_index,
                          true);
+    for (auto &name : string_names)
+    {
+      names.emplace_back(name);
+    }
 
     // Store the return types and names so they can be
     // validated by parquet_scans or other scans used in endpoints.
-    ret->set_types_and_names(return_types, names);
+    ret->set_types_and_names(return_types, IdentifiersToStrings(names));
 
     return ret;
   }
@@ -234,7 +239,7 @@ namespace duckdb
       ClientContext &context,
       TableFunctionBindInput &input,
       vector<LogicalType> &return_types,
-      vector<string> &names)
+      vector<Identifier> &names)
   {
     auto server_location = input.inputs[0].ToString();
     AirportTakeFlightParameters params(server_location, context, input);
@@ -251,7 +256,7 @@ namespace duckdb
       ClientContext &context,
       TableFunctionBindInput &input,
       vector<LogicalType> &return_types,
-      vector<string> &names)
+      vector<Identifier> &names)
   {
     if (input.inputs[0].IsNull())
     {
@@ -377,7 +382,7 @@ namespace duckdb
     {
       auto &vec = output.data[idx];
       vec.SetVectorType(VectorType::FLAT_VECTOR);
-      FlatVector::Validity(vec).SetAllInvalid(output.size());
+      FlatVector::ValidityMutable(vec).SetAllInvalid(output.size());
     }
 
     auto count = output.size();
@@ -1102,15 +1107,14 @@ namespace duckdb
     return AirportArrowScanInitLocalInternal(context.client, input, global_state_p);
   }
 
-  static BindInfo AirportTakeFlightGetBindInfo(const optional_ptr<FunctionData> bind_data_p)
+  static optional_ptr<TableCatalogEntry> AirportTakeFlightGetTableEntry(optional_ptr<const FunctionData> bind_data_p)
   {
     auto &bind_data = bind_data_p->Cast<AirportTakeFlightBindData>();
     // I know I'm dropping the const here, fix this later.
     AirportTableEntry *table_entry = (AirportTableEntry *)bind_data.table_entry();
 
     D_ASSERT(table_entry != nullptr);
-    BindInfo bind_info(*table_entry);
-    return bind_info;
+    return table_entry;
   }
 
   void AirportAddTakeFlightFunction(ExtensionLoader &loader)
@@ -1125,12 +1129,14 @@ namespace duckdb
         AirportArrowScanInitGlobal,
         AirportArrowScanInitLocal);
 
-    take_flight_function_with_descriptor.named_parameters["auth_token"] = LogicalType::VARCHAR;
-    take_flight_function_with_descriptor.named_parameters["secret"] = LogicalType::VARCHAR;
-    take_flight_function_with_descriptor.named_parameters["ticket"] = LogicalType::BLOB;
-    take_flight_function_with_descriptor.named_parameters["headers"] = LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR);
-    take_flight_function_with_descriptor.named_parameters["at_unit"] = LogicalType::VARCHAR;
-    take_flight_function_with_descriptor.named_parameters["at_value"] = LogicalType::ANY;
+    AirportAddNamedParameters(take_flight_function_with_descriptor, {
+        {"auth_token", LogicalType::VARCHAR},
+        {"secret", LogicalType::VARCHAR},
+        {"ticket", LogicalType::BLOB},
+        {"headers", LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR)},
+        {"at_unit", LogicalType::VARCHAR},
+        {"at_value", LogicalType::ANY}
+    });
 
     take_flight_function_with_descriptor.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
 
@@ -1140,6 +1146,7 @@ namespace duckdb
     take_flight_function_with_descriptor.projection_pushdown = true;
     take_flight_function_with_descriptor.filter_pushdown = false;
     take_flight_function_with_descriptor.table_scan_progress = AirportTakeFlightScanProgress;
+    AirportNamePositionalParameters(take_flight_function_with_descriptor, {"location", "descriptor"});
     take_flight_function_set.AddFunction(take_flight_function_with_descriptor);
 
     auto take_flight_function_with_pointer = TableFunction(
@@ -1150,10 +1157,12 @@ namespace duckdb
         AirportArrowScanInitGlobal,
         AirportArrowScanInitLocal);
 
-    take_flight_function_with_pointer.named_parameters["auth_token"] = LogicalType::VARCHAR;
-    take_flight_function_with_pointer.named_parameters["secret"] = LogicalType::VARCHAR;
-    take_flight_function_with_pointer.named_parameters["at_unit"] = LogicalType::VARCHAR;
-    take_flight_function_with_pointer.named_parameters["at_value"] = LogicalType::ANY;
+    AirportAddNamedParameters(take_flight_function_with_pointer, {
+        {"auth_token", LogicalType::VARCHAR},
+        {"secret", LogicalType::VARCHAR},
+        {"at_unit", LogicalType::VARCHAR},
+        {"at_value", LogicalType::ANY}
+    });
     take_flight_function_with_pointer.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
 
     // Add support for optional named paraemters that would be appended to the descriptor
@@ -1165,9 +1174,10 @@ namespace duckdb
     take_flight_function_with_pointer.filter_pushdown = false;
     take_flight_function_with_pointer.table_scan_progress = AirportTakeFlightScanProgress;
     take_flight_function_with_pointer.statistics = AirportTakeFlightStatistics;
-    take_flight_function_with_pointer.get_bind_info = AirportTakeFlightGetBindInfo;
+    take_flight_function_with_pointer.get_table_entry = AirportTakeFlightGetTableEntry;
     take_flight_function_with_pointer.to_string = AirportTakeFlightToString;
 
+    AirportNamePositionalParameters(take_flight_function_with_pointer, {"table_pointer", "table_entry_pointer", "transaction_id"});
     take_flight_function_set.AddFunction(take_flight_function_with_pointer);
 
     CreateTableFunctionInfo info(take_flight_function_set);

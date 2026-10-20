@@ -1,3 +1,5 @@
+#include "duckdb/catalog/catalog.hpp"
+#include "duckdb/catalog/catalog_entry/schema_catalog_entry.hpp"
 #include "airport_extension.hpp"
 #include "duckdb.hpp"
 
@@ -125,8 +127,8 @@ namespace duckdb
     D_ASSERT(!name.empty());
     auto &system_catalog = Catalog::GetSystemCatalog(db);
     auto data = CatalogTransaction::GetSystemTransaction(db);
-    auto &schema = system_catalog.GetSchema(data, DEFAULT_SCHEMA);
-    return schema.GetEntry(data, type, name);
+    auto &schema = system_catalog.GetSchema(data, Identifier::DefaultSchema());
+    return schema.GetEntry(data, type, Identifier(name));
   }
 
   TableFunctionCatalogEntry &AirportGetTableFunction(DatabaseInstance &db, const string &name)

@@ -1,3 +1,4 @@
+#include "duckdb/execution/physical_plan_generator.hpp"
 #include "duckdb.hpp"
 #include "storage/airport_delete.hpp"
 #include "storage/airport_table_entry.hpp"
@@ -127,7 +128,7 @@ namespace duckdb
     returning_column_names.reserve(table.GetColumns().LogicalColumnCount());
     for (auto &cd : table.GetColumns().Logical())
     {
-      returning_column_names.push_back(cd.GetName());
+      returning_column_names.push_back(cd.GetName().GetIdentifierName());
     }
 
     AirportExchangeGetGlobalSinkState(context, table, airport_table, delete_global_state.get(), send_schema, return_chunk, "delete",
@@ -283,7 +284,7 @@ namespace duckdb
   InsertionOrderPreservingMap<string> AirportDelete::ParamsToString() const
   {
     InsertionOrderPreservingMap<string> result;
-    result["Table Name"] = table.name;
+    result["Table Name"] = table.name.GetIdentifierName();
     return result;
   }
 
@@ -311,7 +312,7 @@ namespace duckdb
       return del;
     }
 
-    auto &del = planner.Make<AirportDelete>(op.types, op.table, std::move(op.bound_constraints), bound_ref.index, op.estimated_cardinality, op.return_chunk);
+    auto &del = planner.Make<AirportDelete>(op.types, op.table, std::move(op.bound_constraints), bound_ref.Index(), op.estimated_cardinality, op.return_chunk);
     del.children.push_back(plan);
     return del;
   }

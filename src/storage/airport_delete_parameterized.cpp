@@ -140,7 +140,7 @@ namespace duckdb
   InsertionOrderPreservingMap<string> AirportDeleteParameterized::ParamsToString() const
   {
     InsertionOrderPreservingMap<string> result;
-    result["Table Name"] = table.name;
+    result["Table Name"] = table.name.GetIdentifierName();
     return result;
   }
 

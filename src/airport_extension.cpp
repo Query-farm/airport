@@ -6,6 +6,12 @@
 #include "duckdb/main/secret/secret_manager.hpp"
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/storage/storage_extension.hpp"
+#include "duckdb/main/attached_database.hpp"
+#include "duckdb/logging/log_manager.hpp"
+#include "duckdb/parser/parser.hpp"
+#include "duckdb/parser/expression/columnref_expression.hpp"
+#include "duckdb/parser/expression/constant_expression.hpp"
+#include "duckdb/parser/statement/select_statement.hpp"
 #include "duckdb/parser/parsed_data/create_macro_info.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/function/table_macro_function.hpp"
@@ -199,14 +205,14 @@ namespace duckdb
     {
         D_ASSERT(args.ColumnCount() == 0);
         Value val(airport_user_agent());
-        result.Reference(val);
+        result.Reference(val, count_t(args.size()));
     }
 
     static inline void get_airport_version(DataChunk &args, ExpressionState &state, Vector &result)
     {
         D_ASSERT(args.ColumnCount() == 0);
         Value val(AIRPORT_EXTENSION_VERSION);
-        result.Reference(val);
+        result.Reference(val, count_t(args.size()));
     }
 
     static void AirportAddSimpleFunctions(ExtensionLoader &loader)
@@ -236,7 +242,7 @@ namespace duckdb
                                    const vector<string> &params, const child_list_t<Value> &named_params,
                                    const string &description, const vector<string> &examples)
     {
-        Parser parser;
+        auto parser = Parser::GetBuiltinParser();
         parser.ParseQuery(query);
         const auto &stmt = parser.statements.back();
         auto &node = stmt->Cast<SelectStatement>().node;
@@ -244,17 +250,16 @@ namespace duckdb
         auto func = make_uniq<TableMacroFunction>(std::move(node));
         for (auto &param : params)
         {
-            func->parameters.push_back(make_uniq<ColumnRefExpression>(param));
+            func->parameters.push_back(make_uniq<ColumnRefExpression>(Identifier(param)));
         }
 
         for (auto &param : named_params)
         {
-            func->default_parameters[param.first] = make_uniq<ConstantExpression>(param.second);
+            func->default_parameters.insert(Identifier(param.first), ConstantExpression::FromValue(param.second));
         }
 
         CreateMacroInfo info(CatalogType::TABLE_MACRO_ENTRY);
-        info.schema = DEFAULT_SCHEMA;
-        info.name = name;
+        info.SetQualifiedName(QualifiedName({Identifier::DefaultSchema()}, Identifier(name)));
         info.temporary = true;
         info.internal = true;
         info.macros.push_back(std::move(func));

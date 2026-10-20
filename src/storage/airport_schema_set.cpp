@@ -117,7 +117,7 @@ namespace duckdb
       }
 
       CreateSchemaInfo info;
-      info.schema = schema_name;
+      info.SetQualifiedName(QualifiedName({Identifier(schema_name)}, Identifier()));
       info.internal = IsInternalTable(schema.catalog_name(), schema_name);
 
       auto schema_entry = make_uniq<AirportSchemaEntry>(catalog, info, cache_path, schema);
@@ -165,7 +165,7 @@ namespace duckdb
 
     AirportCreateSchemaParameters params;
     params.catalog_name = airport_catalog.internal_name();
-    params.schema = info.schema;
+    params.schema = info.SchemaName().GetIdentifierName();
     if (!info.comment.IsNull())
     {
       params.comment = info.comment.ToString();
@@ -196,7 +196,7 @@ namespace duckdb
     unordered_map<string, string> empty;
     auto real_entry = AirportAPISchema(
         airport_catalog.internal_name(),
-        info.schema,
+        info.SchemaName().GetIdentifierName(),
         "",
         empty,
         false,

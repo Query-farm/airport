@@ -31,6 +31,11 @@ namespace flight = arrow::flight;
 namespace duckdb
 {
 
+  // DuckDB 2.0 replaced the stream_factory_produce_t function pointer with
+  // ArrowScanFactory; Airport only uses it internally to produce its own streams.
+  typedef unique_ptr<ArrowArrayStreamWrapper> (*stream_factory_produce_t)(uintptr_t stream_factory_ptr,
+                                                                          ArrowStreamParameters &parameters);
+
   struct AirportArrowScanFunctionData : public TableFunctionData
   {
   public:
@@ -199,13 +204,13 @@ namespace duckdb
   struct AirportDuckDBFunctionCallParsed
   {
     vector<Value> argument_values;
-    named_parameter_map_t named_params;
-    TableFunction func;
+    named_argument_map_t named_params;
+    shared_ptr<const TableFunction> func;
 
     explicit AirportDuckDBFunctionCallParsed(
         const vector<Value> &argument_values,
-        const named_parameter_map_t &named_params,
-        TableFunction func)
+        const named_argument_map_t &named_params,
+        shared_ptr<const TableFunction> func)
         : argument_values(std::move(argument_values)),
           named_params(std::move(named_params)),
           func(std::move(func))
@@ -222,7 +227,7 @@ namespace duckdb
 
   struct AirportLocalScanData
   {
-    TableFunction table_function;
+    BoundTableFunction table_function;
     unique_ptr<FunctionData> bind_data;
 
     unique_ptr<GlobalTableFunctionState> global_state;
@@ -240,15 +245,15 @@ namespace duckdb
   public:
     explicit AirportLocalScanData(std::string uri,
                                   ClientContext &context,
-                                  TableFunction &func,
+                                  shared_ptr<const TableFunction> func,
                                   const vector<LogicalType> &expected_return_types,
                                   const vector<string> &expected_return_names,
                                   const TableFunctionInitInput &init_input);
 
     explicit AirportLocalScanData(vector<Value> argument_values,
-                                  named_parameter_map_t named_params,
+                                  named_argument_map_t named_params,
                                   ClientContext &context,
-                                  TableFunction &func,
+                                  shared_ptr<const TableFunction> func,
                                   const vector<LogicalType> &expected_return_types,
                                   const vector<string> &expected_return_names,
                                   const TableFunctionInitInput &init_input);

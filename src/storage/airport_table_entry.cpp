@@ -24,13 +24,13 @@ namespace duckdb
 {
 
   AirportTableEntry::AirportTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info, const LogicalType &rowid_type)
-      : TableCatalogEntry(catalog, schema, info), rowid_type(rowid_type), catalog_(catalog)
+      : TableCatalogEntry(catalog, schema, info), columns(std::move(info.columns)), rowid_type(rowid_type), catalog_(catalog)
   {
     this->internal = false;
   }
 
   AirportTableEntry::AirportTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, AirportTableInfo &info, const LogicalType &rowid_type)
-      : TableCatalogEntry(catalog, schema, *info.create_info), rowid_type(rowid_type), catalog_(catalog)
+      : TableCatalogEntry(catalog, schema, *info.create_info), columns(std::move(info.create_info->columns)), rowid_type(rowid_type), catalog_(catalog)
   {
     this->internal = false;
   }
@@ -224,31 +224,37 @@ namespace duckdb
         Value::POINTER((uintptr_t)this),
         transaction.identifier().has_value() ? transaction.identifier().value() : ""};
 
-    named_parameter_map_t param_map;
+    named_argument_map_t param_map;
+    vector<LogicalType> input_table_types;
+    vector<Identifier> input_table_names;
     vector<LogicalType> return_types;
-    vector<string> names;
+    vector<Identifier> names;
     TableFunctionRef empty_ref;
 
     auto at = lookup.GetAtClause();
     if (at)
     {
-      param_map["at_unit"] = at->Unit();
+      param_map["at_unit"] = Value(at->Unit().GetIdentifierName());
       param_map["at_value"] = at->GetValue();
     }
 
+    BoundTableFunction bound_function(airport_take_flight_function);
+    bound_function.GetSignature().FillNamedDefaults(context, param_map);
+    bound_function.SetCallArguments(inputs, param_map);
+
     TableFunctionBindInput bind_input(inputs,
                                       param_map,
-                                      return_types,
-                                      names,
+                                      input_table_types,
+                                      input_table_names,
                                       nullptr,
                                       nullptr,
-                                      airport_take_flight_function,
+                                      bound_function,
                                       empty_ref);
 
-    auto result = airport_take_flight_function.bind(context, bind_input, return_types, names);
+    auto result = bound_function.bind(context, bind_input, return_types, names);
     bind_data = std::move(result);
 
-    return airport_take_flight_function;
+    return *airport_take_flight_function;
   }
 
   TableStorageInfo AirportTableEntry::GetStorageInfo(ClientContext &context)

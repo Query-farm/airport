@@ -1,3 +1,4 @@
+#include "duckdb/execution/physical_plan_generator.hpp"
 #include "airport_extension.hpp"
 #include "storage/airport_catalog.hpp"
 #include "storage/airport_schema_entry.hpp"
@@ -81,9 +82,9 @@ namespace duckdb
     return result.catalog_version;
   }
 
-  string AirportCatalog::GetDefaultSchema() const
+  optional<Identifier> AirportCatalog::GetDefaultSchema() const
   {
-    return default_schema_;
+    return Identifier(default_schema_);
   }
 
   optional_ptr<CatalogEntry> AirportCatalog::CreateSchema(CatalogTransaction transaction, CreateSchemaInfo &info)
@@ -92,7 +93,7 @@ namespace duckdb
     {
       DropInfo try_drop;
       try_drop.type = CatalogType::SCHEMA_ENTRY;
-      try_drop.name = info.schema;
+      try_drop.SetName(info.SchemaName());
       try_drop.if_not_found = OnEntryNotFound::RETURN_NULL;
       try_drop.cascade = false;
       schemas.DropEntry(transaction.GetContext(), try_drop);
@@ -125,7 +126,7 @@ namespace duckdb
     {
       // "main" was requested but the server's default schema has a different name —
       // redirect to the actual default schema so unqualified lookups work.
-      EntryLookupInfo default_lookup(schema_lookup, default_schema_);
+      EntryLookupInfo default_lookup(schema_lookup, QualifiedName(Identifier(default_schema_)));
       auto entry = schemas.GetEntry(transaction.GetContext(), default_lookup);
       if (entry)
       {

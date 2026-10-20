@@ -217,11 +217,12 @@ namespace duckdb
 
   }
 
-  unique_ptr<FunctionData> AirportScalarFunctionBind(ClientContext &context, ScalarFunction &bound_function,
-                                                     vector<unique_ptr<Expression>> &arguments)
+  unique_ptr<FunctionData> AirportScalarFunctionBind(BindScalarFunctionInput &input)
   {
+    auto &context = input.GetClientContext();
+    auto &arguments = input.GetArguments();
     // FIXME check for the number of arguments.
-    auto &info = bound_function.function_info->Cast<AirportScalarFunctionInfo>();
+    auto &info = input.GetBoundFunction().GetExtraFunctionInfo().Cast<AirportScalarFunctionInfo>();
 
     if (!info.input_schema_includes_any_types())
     {
@@ -267,7 +268,7 @@ namespace duckdb
 
       if (is_any_type)
       {
-        return_types.push_back(arguments[col_idx]->return_type);
+        return_types.push_back(arguments[col_idx]->GetReturnType());
       }
       else
       {
@@ -351,7 +352,7 @@ namespace duckdb
   // Lets work on initializing the local state
   unique_ptr<FunctionLocalState> AirportScalarFunctionInitLocalState(ExpressionState &state, const BoundFunctionExpression &expr, FunctionData *bind_data)
   {
-    auto &info = expr.function.function_info->Cast<AirportScalarFunctionInfo>();
+    auto &info = expr.Function().GetExtraFunctionInfo().Cast<AirportScalarFunctionInfo>();
     auto &data = bind_data->Cast<AirportScalarFunctionBindData>();
 
     auto &transaction = AirportTransaction::Get(state.GetContext(), info.catalog());

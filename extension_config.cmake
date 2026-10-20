@@ -6,12 +6,11 @@ duckdb_extension_load(airport
     LOAD_TESTS
 )
 
-# httpfs pinned to the tag used by DuckDB v1.5.3 (matches the duckdb submodule)
+# httpfs pinned to the commit used by DuckDB v2.0-cyanoptera (matches the duckdb submodule)
 duckdb_extension_load(httpfs
     LOAD_TESTS
-    DONT_LINK
     GIT_URL https://github.com/duckdb/duckdb-httpfs
-    GIT_TAG 52afb4204a3238d6ee132e83340f8d68c40ee91c
+    GIT_TAG 77392a72077a85897db2519fae11e2c0da972b8a
     INCLUDE_DIR extension/httpfs/include
 )
 

@@ -69,7 +69,7 @@ namespace duckdb
       return "airport";
     }
 
-    string GetDefaultSchema() const override;
+    optional<Identifier> GetDefaultSchema() const override;
 
     bool SupportsTimeTravel() const override
     {

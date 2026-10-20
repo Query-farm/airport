@@ -72,7 +72,7 @@ namespace duckdb
 			else
 			{
 				result = 0;
-				FastMemcpy(&result, k.ptr, k.len);
+				memcpy(&result, k.ptr, k.len);
 			}
 			return result;
 		}
@@ -86,7 +86,7 @@ namespace duckdb
 			{
 				return false;
 			}
-			return FastMemcmp(a.ptr, b.ptr, a.len) == 0;
+			return memcmp(a.ptr, b.ptr, a.len) == 0;
 		}
 	};
 

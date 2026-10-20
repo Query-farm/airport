@@ -23,7 +23,7 @@ namespace duckdb
 
   static void VerifyNotNullConstraint(TableCatalogEntry &table, Vector &vector, idx_t count, const string &col_name)
   {
-    if (!VectorOperations::HasNull(vector, count))
+    if (!VectorOperations::HasNull(vector))
     {
       return;
     }
@@ -75,7 +75,7 @@ namespace duckdb
       throw ConstraintException("CHECK constraint failed on table %s with expression %s (Unknown Error)", table.name, check.ToString());
     } // LCOV_EXCL_STOP
     UnifiedVectorFormat vdata;
-    result.ToUnifiedFormat(chunk.size(), vdata);
+    result.ToUnifiedFormat(vdata);
 
     auto dataptr = UnifiedVectorFormat::GetData<int32_t>(vdata);
     for (idx_t i = 0; i < chunk.size(); i++)
@@ -141,10 +141,10 @@ namespace duckdb
 
         // Since the column names that are send can be in a different order
         // look them up by name.
-        auto col_index = findStringIndex(column_names, col.Name());
+        auto col_index = findStringIndex(column_names, col.Name().GetIdentifierName());
         if (col_index.has_value())
         {
-          VerifyNotNullConstraint(table, chunk.data[col_index.value()], chunk.size(), col.Name());
+          VerifyNotNullConstraint(table, chunk.data[col_index.value()], chunk.size(), col.Name().GetIdentifierName());
         }
         break;
       }

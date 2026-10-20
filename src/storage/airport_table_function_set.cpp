@@ -1,3 +1,4 @@
+#include "airport_function_description.hpp"
 #include "duckdb.hpp"
 #include "airport_table_in_out.hpp"
 #include "duckdb/catalog/catalog_entry/scalar_function_catalog_entry.hpp"
@@ -172,7 +173,7 @@ namespace duckdb
 
       if (!metadata.GetOption("is_named_parameter").empty())
       {
-        input_chunk.data[col_idx].SetValue(0, input.named_parameters[schema_child.name]);
+        input_chunk.data[col_idx].SetValue(0, input.named_parameters[Identifier(schema_child.name)]);
         seen_named_parameters += 1;
       }
       else
@@ -242,7 +243,7 @@ namespace duckdb
       ClientContext &context,
       TableFunctionBindInput &input,
       vector<LogicalType> &return_types,
-      vector<string> &names)
+      vector<Identifier> &names)
   {
     auto function_info = input.info->Cast<AirportDynamicTableFunctionInfo>();
 
@@ -274,7 +275,7 @@ namespace duckdb
 
       ArrowConverter::ToArrowSchema(&input_table_schema,
                                     input.input_table_types,
-                                    input.input_table_names,
+                                    IdentifiersToStrings(input.input_table_names),
                                     client_properties);
 
       AIRPORT_ASSIGN_OR_RAISE_CONTAINER(auto table_input_schema,
@@ -717,7 +718,7 @@ namespace duckdb
     return OperatorFinalizeResultType::FINISHED;
   }
 
-  bool IsAirportTableInOutFunction(const TableFunction &function)
+  bool IsAirportTableInOutFunction(const BaseTableFunction &function)
   {
     return function.in_out_function == AirportTakeFlightInOut;
   }
@@ -732,7 +733,7 @@ namespace duckdb
     auto contents = AirportAPI::GetSchemaItems(
         db,
         catalog.GetDBPath(),
-        schema.name,
+        schema.name.GetIdentifierName(),
         schema.serialized_source(),
         cache_directory_,
         airport_catalog.attach_parameters());
@@ -748,7 +749,7 @@ namespace duckdb
 
     for (const auto &pair : functions_by_name)
     {
-      TableFunctionSet flight_func_set(pair.first.name);
+      TableFunctionSet flight_func_set(Identifier(pair.first.name));
       vector<FunctionDescription> function_descriptions;
 
       for (const auto &function : pair.second)
@@ -809,9 +810,14 @@ namespace duckdb
           table_func.pushdown_complex_filter = AirportTakeFlightComplexFilterPushdown;
         }
 
-        for (auto &named_pair : input_types.named)
+        if (!input_types.named.empty())
         {
-          table_func.named_parameters.emplace(named_pair.first, named_pair.second);
+          vector<std::pair<string, LogicalType>> named_parameters(input_types.named.begin(), input_types.named.end());
+          AirportAddNamedParameters(table_func, named_parameters);
+        }
+        if (table_func.GetSignature().GetPositionalParameterCount() == input_types.positional_names.size())
+        {
+          AirportNamePositionalParameters(table_func, input_types.positional_names);
         }
 
         // Need to store some function information along with the function so that when its called
@@ -822,8 +828,7 @@ namespace duckdb
       }
 
       CreateTableFunctionInfo info = CreateTableFunctionInfo(flight_func_set);
-      info.catalog = pair.first.catalog_name;
-      info.schema = pair.first.schema_name;
+      info.SetQualification(Identifier(pair.first.catalog_name), Identifier(pair.first.schema_name));
 
       for (auto &desc : function_descriptions)
       {

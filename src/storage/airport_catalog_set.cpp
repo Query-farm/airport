@@ -66,8 +66,9 @@ namespace duckdb
     // Common parameters
     DropItemActionParameters params;
     params.catalog_name = airport_catalog.internal_name();
-    params.schema_name = info.schema;
-    params.name = info.name;
+    const auto &drop_name = info.GetQualifiedName().Name().GetIdentifierName();
+    params.schema_name = info.GetQualifiedName().Schema().GetIdentifierName();
+    params.name = drop_name;
     params.ignore_not_found = (info.if_not_found == OnEntryNotFound::RETURN_NULL) ? true : false;
 
     std::string action_type;
@@ -92,9 +93,9 @@ namespace duckdb
 
     AirportCallAction(flight_client, call_options, action, server_location, false);
 
-    D_ASSERT(entries.find(info.name) != entries.end());
+    D_ASSERT(entries.find(drop_name) != entries.end());
 
-    EraseEntryInternal(info.name);
+    EraseEntryInternal(drop_name);
   }
 
   void AirportCatalogSet::EraseEntryInternal(const string &name)
@@ -125,7 +126,7 @@ namespace duckdb
       throw CatalogException("AirportCatalogSet::CreateEntry called with empty name");
     }
     //    printf("Creating catalog entry\n");
-    entries.insert(make_pair(result->name, std::move(entry)));
+    entries.insert(make_pair(result->name.GetIdentifierName(), std::move(entry)));
     return result;
   }
 

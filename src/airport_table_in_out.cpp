@@ -179,7 +179,7 @@ namespace duckdb
       }
 
       vector<ColumnBinding> GetColumnBindings() override { return function->GetColumnBindings(); }
-      vector<idx_t> GetTableIndex() const override { return function->GetTableIndex(); }
+      vector<TableIndex> GetTableIndex() const override { return function->GetTableIndex(); }
       bool SupportSerialization() const override { return false; }
       string GetExtensionName() const override { return "airport"; }
       void Serialize(Serializer &) const override

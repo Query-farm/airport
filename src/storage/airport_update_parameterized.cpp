@@ -82,7 +82,7 @@ namespace duckdb
       const auto &col = op.table.GetColumn(op.table.GetColumns().PhysicalToLogical(op.columns[c]));
       expressions += col.GetName() + " = ";
 
-      switch (op.expressions[c]->type)
+      switch (op.expressions[c]->GetExpressionType())
       {
       case ExpressionType::VALUE_DEFAULT:
         expressions += "DEFAULT";
@@ -90,7 +90,7 @@ namespace duckdb
       case ExpressionType::BOUND_REF:
       {
         const auto &ref = op.expressions[c]->Cast<BoundReferenceExpression>();
-        expressions += proj.select_list[ref.index]->ToString();
+        expressions += proj.select_list[ref.Index()]->ToString();
         break;
       }
       default:
@@ -179,7 +179,7 @@ namespace duckdb
   InsertionOrderPreservingMap<string> AirportUpdateParameterized::ParamsToString() const
   {
     InsertionOrderPreservingMap<string> result;
-    result["Table Name"] = table.name;
+    result["Table Name"] = table.name.GetIdentifierName();
     return result;
   }
 

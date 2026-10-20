@@ -16,18 +16,18 @@ namespace duckdb
     }
 
     AirportTableInfo(const string &schema, const string &table)
-        : create_info(make_uniq<CreateTableInfo>(string(), schema, table))
+        : create_info(make_uniq<CreateTableInfo>(QualifiedName(Identifier(), Identifier(schema), Identifier(table))))
     {
     }
 
     AirportTableInfo(const SchemaCatalogEntry &schema, const string &table)
-        : create_info(make_uniq<CreateTableInfo>((SchemaCatalogEntry &)schema, table))
+        : create_info(make_uniq<CreateTableInfo>((SchemaCatalogEntry &)schema, Identifier(table)))
     {
     }
 
     const string &GetTableName() const
     {
-      return create_info->table;
+      return create_info->GetTableName().GetIdentifierName();
     }
 
     const unique_ptr<CreateTableInfo> create_info;
@@ -59,6 +59,11 @@ namespace duckdb
     }
 
   public:
+    const ColumnList &GetColumns() const override
+    {
+      return columns;
+    }
+
     unique_ptr<BaseStatistics> GetStatistics(ClientContext &context, column_t column_id) override;
 
     TableFunction GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) override;
@@ -77,6 +82,8 @@ namespace duckdb
     }
 
   private:
+    //! The columns of the table (DuckDB 2.0 no longer stores them in TableCatalogEntry).
+    ColumnList columns;
     //! A logical type for the rowid of this table.
     const LogicalType rowid_type;
 

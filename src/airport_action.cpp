@@ -83,7 +83,7 @@ namespace duckdb
     unique_ptr<FunctionData> do_action_bind(
         ClientContext &context,
         TableFunctionBindInput &input,
-        vector<LogicalType> &return_types, vector<string> &names)
+        vector<LogicalType> &return_types, vector<Identifier> &names)
     {
       if (input.inputs.size() < 2)
       {
@@ -105,7 +105,7 @@ namespace duckdb
 
       for (auto &kv : input.named_parameters)
       {
-        auto loption = StringUtil::Lower(kv.first);
+        auto loption = StringUtil::Lower(kv.first.GetIdentifierName());
         if (loption == "auth_token")
         {
           auth_token = StringValue::Get(kv.second);
@@ -185,7 +185,7 @@ namespace duckdb
         return;
       }
 
-      FlatVector::GetData<string_t>(output.data[0])[0] = StringVector::AddStringOrBlob(output.data[0],
+      FlatVector::GetDataMutable<string_t>(output.data[0])[0] = StringVector::AddStringOrBlob(output.data[0],
                                                                                        action_result->body->ToString());
 
       output.SetCardinality(1);
@@ -203,10 +203,13 @@ namespace duckdb
         do_action_bind,
         ActionGlobalState::Init);
 
-    with_parameter.named_parameters["auth_token"] = LogicalType::VARCHAR;
-    with_parameter.named_parameters["secret"] = LogicalType::VARCHAR;
-    with_parameter.named_parameters["headers"] = LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR);
+    AirportAddNamedParameters(with_parameter, {
+        {"auth_token", LogicalType::VARCHAR},
+        {"secret", LogicalType::VARCHAR},
+        {"headers", LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR)}
+    });
 
+    AirportNamePositionalParameters(with_parameter, {"location", "action_name", "parameter"});
     do_action_functions.AddFunction(with_parameter);
 
     auto without_parameter = TableFunction(
@@ -216,10 +219,13 @@ namespace duckdb
         do_action_bind,
         ActionGlobalState::Init);
 
-    without_parameter.named_parameters["auth_token"] = LogicalType::VARCHAR;
-    without_parameter.named_parameters["secret"] = LogicalType::VARCHAR;
-    without_parameter.named_parameters["headers"] = LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR);
+    AirportAddNamedParameters(without_parameter, {
+        {"auth_token", LogicalType::VARCHAR},
+        {"secret", LogicalType::VARCHAR},
+        {"headers", LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR)}
+    });
 
+    AirportNamePositionalParameters(without_parameter, {"location", "action_name"});
     do_action_functions.AddFunction(without_parameter);
 
     CreateTableFunctionInfo info(do_action_functions);

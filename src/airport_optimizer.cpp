@@ -18,7 +18,7 @@ namespace duckdb
     {
       auto markAirportTakeFlightSkipResults = [](LogicalGet &get)
       {
-        if (get.function.name == "airport_take_flight")
+        if (get.function.GetName() == "airport_take_flight")
         {
           auto &bind_data = get.bind_data->Cast<AirportTakeFlightBindData>();
           bind_data.skip_producing_result_for_update_or_delete = true;

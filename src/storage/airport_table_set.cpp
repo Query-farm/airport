@@ -88,7 +88,7 @@ namespace duckdb
 
         for (auto &expression : table_constraints.constraints)
         {
-          auto expression_list = Parser::ParseExpressionList(expression);
+          auto expression_list = Parser::GetBuiltinParser().ParseExpressionList(expression);
           if (expression_list.size() != 1)
           {
             throw ParserException("Failed to parse CHECK constraint expression: " + expression + " for table " + table_name);
@@ -149,7 +149,7 @@ namespace duckdb
         continue;
       }
 
-      auto column_def = ColumnDefinition(column_names[col_idx - rowid_adjust], return_types[col_idx - rowid_adjust]);
+      auto column_def = ColumnDefinition(Identifier(column_names[col_idx - rowid_adjust]), return_types[col_idx - rowid_adjust]);
       if (column.metadata != nullptr)
       {
         auto column_metadata = ArrowSchemaMetadata(column.metadata);
@@ -164,7 +164,7 @@ namespace duckdb
 
         if (!default_value.empty())
         {
-          auto expressions = Parser::ParseExpressionList(default_value);
+          auto expressions = Parser::GetBuiltinParser().ParseExpressionList(default_value);
           if (expressions.empty())
           {
             throw AirportFlightException(location.server_location(), location.descriptor(), "Expression list is empty when parsing default value for column", column.name);
@@ -180,7 +180,8 @@ namespace duckdb
 
     for (auto col_name : not_null_columns)
     {
-      auto not_null_index = info.columns.GetColumnIndex(col_name);
+      Identifier not_null_name(col_name);
+      auto not_null_index = info.columns.GetColumnIndex(not_null_name);
       info.constraints.emplace_back(make_uniq<NotNullConstraint>(not_null_index));
     }
   }
@@ -194,7 +195,7 @@ namespace duckdb
     auto contents = AirportAPI::GetSchemaItems(
         db,
         catalog.GetDBPath(),
-        schema.name,
+        schema.name.GetIdentifierName(),
         schema.serialized_source(),
         cache_directory_,
         airport_catalog.attach_parameters());
@@ -204,7 +205,7 @@ namespace duckdb
       // D_ASSERT(schema.name == table.schema_name);
       CreateTableInfo info;
 
-      info.table = table.name();
+      info.SetTableName(Identifier(table.name()));
       info.comment = table.comment().value_or("");
 
       LogicalType rowid_type;
@@ -298,10 +299,10 @@ namespace duckdb
     // that was converted to be sent to the server.
     CreateTableInfo create_info;
     LogicalType rowid_type;
-    create_info.table = app_metadata_obj.name;
+    create_info.SetQualifiedName(QualifiedName(Identifier(app_metadata_obj.catalog),
+                                               Identifier(app_metadata_obj.schema),
+                                               Identifier(app_metadata_obj.name)));
     create_info.comment = app_metadata_obj.comment.value_or("");
-    create_info.schema = app_metadata_obj.schema;
-    create_info.catalog = app_metadata_obj.catalog;
 
     AirportArrowSchemaToCreateTableInfo(create_info,
                                         info_schema,
@@ -339,7 +340,7 @@ namespace duckdb
     for (auto &col : base.columns.Logical())
     {
       column_types.push_back(col.GetType());
-      column_names.push_back(col.Name());
+      column_names.push_back(col.Name().GetIdentifierName());
     }
 
     ArrowSchema schema;
@@ -365,8 +366,8 @@ namespace duckdb
 
     AirportCreateTableParameters params;
     params.catalog_name = airport_catalog.internal_name();
-    params.schema_name = base.schema;
-    params.table_name = base.table;
+    params.schema_name = base.GetQualifiedName().Schema().GetIdentifierName();
+    params.table_name = base.GetTableName().GetIdentifierName();
     params.arrow_schema = serialized_schema->ToString();
     switch (info.base->on_conflict)
     {
@@ -398,13 +399,13 @@ namespace duckdb
           // Single column is specified.
           if (pk.IsPrimaryKey())
           {
-            params.primary_key_columns.push_back(pk.GetColumnNames()[0]);
+            params.primary_key_columns.push_back(pk.GetColumnNames()[0].GetIdentifierName());
           }
           else
           {
             for (auto &col : pk.GetColumnNames())
             {
-              params.unique_columns.push_back(col);
+              params.unique_columns.push_back(col.GetIdentifierName());
             }
           }
         }
@@ -416,7 +417,7 @@ namespace duckdb
             // multi key pk column: insert set of columns into multi_key_pks
             for (auto &col : pk.GetColumnNames())
             {
-              params.multi_key_primary_keys.insert(col);
+              params.multi_key_primary_keys.insert(col.GetIdentifierName());
             }
           }
           else
@@ -472,7 +473,8 @@ namespace duckdb
   {
     //    auto &transaction = AirportTransaction::Get(context, catalog);
     //  auto &airport_catalog = catalog.Cast<AirportCatalog>();
-    EntryLookupInfo lookup_info(CatalogType::TABLE_ENTRY, alter.name);
+    const auto &alter_name = alter.GetQualifiedName().Name();
+    EntryLookupInfo lookup_info(CatalogType::TABLE_ENTRY, QualifiedName(alter_name));
     auto entry = GetEntry(context, lookup_info);
     if (!entry)
     {
@@ -480,7 +482,7 @@ namespace duckdb
     }
 
     auto &airport_entry = entry.get()->Cast<AirportTableEntry>();
-    ReplaceEntry(alter.name, airport_entry.AlterEntryDirect(context, alter));
+    ReplaceEntry(alter_name.GetIdentifierName(), airport_entry.AlterEntryDirect(context, alter));
   }
 
   optional_ptr<CatalogEntry> AirportTableSet::GetEntry(ClientContext &context, const EntryLookupInfo &lookup_info)
@@ -517,7 +519,7 @@ namespace duckdb
         server_location,
         "serialize flight descriptor");
 
-    params.at_unit = at->Unit();
+    params.at_unit = at->Unit().GetIdentifierName();
     params.at_value = at->GetValue().ToString();
 
     arrow::flight::FlightCallOptions call_options;

@@ -1,3 +1,4 @@
+#include "duckdb/execution/physical_plan_generator.hpp"
 #include "airport_extension.hpp"
 #include "storage/airport_insert.hpp"
 #include "storage/airport_catalog.hpp"
@@ -159,7 +160,7 @@ namespace duckdb
     for (auto &col : entry.GetColumns().Logical())
     {
       column_types.push_back(col.GetType());
-      column_names.push_back(col.GetName());
+      column_names.push_back(col.GetName().GetIdentifierName());
     }
     return make_pair(column_names, column_types);
   }
@@ -210,7 +211,7 @@ namespace duckdb
     returning_column_names.reserve(table->GetColumns().LogicalColumnCount());
     for (auto &cd : table->GetColumns().Logical())
     {
-      returning_column_names.push_back(cd.GetName());
+      returning_column_names.push_back(cd.GetName().GetIdentifierName());
     }
 
     AirportExchangeGetGlobalSinkState(context,
@@ -424,7 +425,7 @@ namespace duckdb
   InsertionOrderPreservingMap<string> AirportInsert::ParamsToString() const
   {
     InsertionOrderPreservingMap<string> result;
-    result["Table Name"] = !info ? insert_table->name : info->Base().table;
+    result["Table Name"] = !info ? insert_table->name.GetIdentifierName() : info->Base().GetTableName().GetIdentifierName();
     return result;
   }
 

@@ -9,6 +9,18 @@
 namespace duckdb
 {
 
+  // DuckDB 2.0 uses column paths for several ALTER TABLE column operations so that
+  // nested struct fields can be targeted. Airport's wire protocol carries a single
+  // top-level column name for these operations.
+  inline std::string AirportAlterSingleColumnName(const vector<Identifier> &column_path, const char *operation)
+  {
+    if (column_path.size() != 1)
+    {
+      throw NotImplementedException("Airport does not support %s on nested struct fields", operation);
+    }
+    return column_path[0].GetIdentifierName();
+  }
+
   struct AirportAlterBase
   {
     //! Catalog name to alter
@@ -20,8 +32,8 @@ namespace duckdb
     bool ignore_not_found;
 
     explicit AirportAlterBase(const AlterInfo &info, const AirportCatalog &catalog) : catalog(catalog.internal_name()),
-                                                                                      schema(info.schema),
-                                                                                      name(info.name),
+                                                                                      schema(info.GetQualifiedName().Schema().GetIdentifierName()),
+                                                                                      name(info.GetQualifiedName().Name().GetIdentifierName()),
                                                                                       ignore_not_found(info.if_not_found == OnEntryNotFound::RETURN_NULL)
     {
     }
@@ -32,7 +44,7 @@ namespace duckdb
     std::string new_table_name;
 
     explicit AirportAlterTableRenameParameters(const RenameTableInfo &info, const AirportCatalog &catalog) : AirportAlterBase(info, catalog),
-                                                                                                             new_table_name(info.new_table_name)
+                                                                                                             new_table_name(info.new_table_name.GetIdentifierName())
     {
     }
 
@@ -45,8 +57,8 @@ namespace duckdb
     std::string new_name;
 
     explicit AirportAlterTableRenameColumnParameters(const RenameColumnInfo &info, const AirportCatalog &catalog) : AirportAlterBase(info, catalog),
-                                                                                                                    old_name(info.old_name),
-                                                                                                                    new_name(info.new_name)
+                                                                                                                    old_name(info.old_name.GetIdentifierName()),
+                                                                                                                    new_name(info.new_name.GetIdentifierName())
     {
     }
 
@@ -71,7 +83,7 @@ namespace duckdb
       auto client_properties = context.GetClientProperties();
       ArrowConverter::ToArrowSchema(&send_schema,
                                     {info.new_column.Type()},
-                                    {info.new_column.Name()},
+                                    {info.new_column.Name().GetIdentifierName()},
                                     client_properties);
 
       std::shared_ptr<arrow::Schema> cpp_schema;
@@ -108,7 +120,7 @@ namespace duckdb
     explicit AirportAlterTableAddFieldParameters(const AddFieldInfo &info, const AirportCatalog &catalog, ClientContext &context,
                                                  const std::string &server_location)
         : AirportAlterBase(info, catalog),
-          column_path(info.column_path),
+          column_path(IdentifiersToStrings(info.column_path)),
           if_field_not_exists(info.if_field_not_exists)
 
     {
@@ -116,7 +128,7 @@ namespace duckdb
       auto client_properties = context.GetClientProperties();
       ArrowConverter::ToArrowSchema(&send_schema,
                                     {info.new_field.Type()},
-                                    {info.new_field.Name()},
+                                    {info.new_field.Name().GetIdentifierName()},
                                     client_properties);
 
       std::shared_ptr<arrow::Schema> cpp_schema;
@@ -148,7 +160,7 @@ namespace duckdb
 
     explicit AirportRemoveTableColumnParameters(const RemoveColumnInfo &info, const AirportCatalog &catalog) : AirportAlterBase(info, catalog)
     {
-      removed_column = info.removed_column;
+      removed_column = info.removed_column.GetIdentifierName();
       if_column_exists = info.if_column_exists;
       cascade = info.cascade;
     }
@@ -164,7 +176,7 @@ namespace duckdb
 
     explicit AirportAlterTableRemoveFieldParameters(const RemoveFieldInfo &info, const AirportCatalog &catalog)
         : AirportAlterBase(info, catalog),
-          column_path(info.column_path),
+          column_path(IdentifiersToStrings(info.column_path)),
           if_column_exists(info.if_column_exists),
           cascade(info.cascade)
     {
@@ -180,8 +192,8 @@ namespace duckdb
     std::string new_name;
 
     explicit AirportAlterTableRenameFieldParameters(const RenameFieldInfo &info, const AirportCatalog &catalog) : AirportAlterBase(info, catalog),
-                                                                                                                  column_path(info.column_path),
-                                                                                                                  new_name(info.new_name)
+                                                                                                                  column_path(IdentifiersToStrings(info.column_path)),
+                                                                                                                  new_name(info.new_name.GetIdentifierName())
     {
     }
 
@@ -194,7 +206,7 @@ namespace duckdb
 
     explicit AirportAlterTableRenameTableParameters(const RenameTableInfo &info, const AirportCatalog &catalog)
         : AirportAlterBase(info, catalog),
-          new_table_name(info.new_table_name)
+          new_table_name(info.new_table_name.GetIdentifierName())
     {
     }
 
@@ -208,7 +220,7 @@ namespace duckdb
 
     explicit AirportAlterTableSetDefaultParameters(const SetDefaultInfo &info, const AirportCatalog &catalog)
         : AirportAlterBase(info, catalog),
-          column_name(info.column_name),
+          column_name(AirportAlterSingleColumnName(info.column_path, "SET DEFAULT")),
           expression(info.expression->ToString())
     {
     }
@@ -231,7 +243,7 @@ namespace duckdb
       auto client_properties = context.GetClientProperties();
       ArrowConverter::ToArrowSchema(&send_schema,
                                     {info.target_type},
-                                    {info.column_name},
+                                    {AirportAlterSingleColumnName(info.column_path, "ALTER COLUMN TYPE")},
                                     client_properties);
 
       std::shared_ptr<arrow::Schema> cpp_schema;
@@ -261,7 +273,7 @@ namespace duckdb
 
     explicit AirportAlterTableSetNotNullParameters(const SetNotNullInfo &info, const AirportCatalog &catalog)
         : AirportAlterBase(info, catalog),
-          column_name(info.column_name)
+          column_name(AirportAlterSingleColumnName(info.column_path, "SET NOT NULL"))
     {
     }
 
@@ -274,7 +286,7 @@ namespace duckdb
 
     explicit AirportAlterTableDropNotNullParameters(const DropNotNullInfo &info, const AirportCatalog &catalog)
         : AirportAlterBase(info, catalog),
-          column_name(info.column_name)
+          column_name(AirportAlterSingleColumnName(info.column_path, "DROP NOT NULL"))
     {
     }
 

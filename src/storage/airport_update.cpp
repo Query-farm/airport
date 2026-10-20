@@ -1,3 +1,4 @@
+#include "duckdb/execution/physical_plan_generator.hpp"
 #include "storage/airport_update.hpp"
 #include "storage/airport_table_entry.hpp"
 #include "duckdb/planner/operator/logical_update.hpp"
@@ -49,14 +50,14 @@ namespace duckdb
     D_ASSERT(this->expressions.size() > 0);
     for (auto &column_index : this->columns)
     {
-      send_names.push_back(table_columns.GetColumn(column_index).GetName());
+      send_names.push_back(table_columns.GetColumn(column_index).GetName().GetIdentifierName());
     }
     // This is always sent last.
     send_names.push_back("rowid");
 
     for (auto &expr : this->expressions)
     {
-      send_types.push_back(expr->return_type);
+      send_types.push_back(expr->GetReturnType());
     }
     send_types.emplace_back(airport_table.GetRowIdType());
 
@@ -157,7 +158,7 @@ namespace duckdb
     vector<string> table_column_names;
     for (auto &cd : this->table.GetColumns().Physical())
     {
-      table_column_names.push_back(cd.GetName());
+      table_column_names.push_back(cd.GetName().GetIdentifierName());
     }
     table_column_names.push_back("rowid");
 
@@ -207,17 +208,17 @@ namespace duckdb
     // Evaluate all of the necessary expressions.
     for (idx_t i = 0; i < expressions.size(); i++)
     {
-      if (expressions[i]->type == ExpressionType::VALUE_DEFAULT)
+      if (expressions[i]->GetExpressionType() == ExpressionType::VALUE_DEFAULT)
       {
         // default expression, set to the default value of the column
         lstate.default_executor.ExecuteExpression(columns[i].index, send_update_chunk.data[i]);
       }
       else
       {
-        D_ASSERT(expressions[i]->type == ExpressionType::BOUND_REF);
+        D_ASSERT(expressions[i]->GetExpressionType() == ExpressionType::BOUND_REF);
         // index into child chunk
         auto &binding = expressions[i]->Cast<BoundReferenceExpression>();
-        send_update_chunk.data[i].Reference(chunk.data[binding.index]);
+        send_update_chunk.data[i].Reference(chunk.data[binding.Index()]);
       }
     }
 
@@ -358,7 +359,7 @@ namespace duckdb
   InsertionOrderPreservingMap<string> AirportUpdate::ParamsToString() const
   {
     InsertionOrderPreservingMap<string> result;
-    result["Table Name"] = table.name;
+    result["Table Name"] = table.name.GetIdentifierName();
     return result;
   }
 
@@ -372,7 +373,7 @@ namespace duckdb
     auto &airport_table = op.table.Cast<AirportTableEntry>();
     for (const auto &expr : op.expressions)
     {
-      if (expr->type == ExpressionType::VALUE_DEFAULT)
+      if (expr->GetExpressionType() == ExpressionType::VALUE_DEFAULT)
       {
         throw BinderException("SET DEFAULT is not yet supported for updates of a Airport table");
       }
