@@ -3,6 +3,9 @@
     "overlay-ports": [
       "./vcpkg_overlay_ports",
       "./extension-ci-tools/vcpkg_ports"
+    ],
+    "overlay-triplets": [
+      "./vcpkg_overlay_triplets"
     ]
   },
   "dependencies": [
