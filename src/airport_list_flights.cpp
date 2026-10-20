@@ -5,6 +5,7 @@
 #include "duckdb/common/vector/flat_vector.hpp"
 #include "duckdb/common/vector/string_vector.hpp"
 #include "duckdb.hpp"
+#include <chrono>
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/vector.hpp"
 
@@ -48,6 +49,8 @@ namespace duckdb
     public:
       const std::shared_ptr<flight::FlightClient> flight_client_;
       std::unique_ptr<flight::FlightListing> listing;
+      //! A flight that was read from the listing but did not fit in the previous output chunk.
+      std::unique_ptr<flight::FlightInfo> pending_flight_info;
 
       explicit ListFlightsGlobalState(std::shared_ptr<flight::FlightClient> flight_client) : flight_client_(flight_client)
       {
@@ -160,10 +163,18 @@ namespace duckdb
         AIRPORT_ASSIGN_OR_RAISE_LOCATION(global_state.listing, global_state.flight_client_->ListFlights(call_options, {bind_data.criteria}), bind_data.server_location, "");
       }
 
-      AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto flight_info,
-                                       global_state.listing->Next(),
-                                       bind_data.server_location,
-                                       "");
+      std::unique_ptr<flight::FlightInfo> flight_info;
+      if (global_state.pending_flight_info)
+      {
+        flight_info = std::move(global_state.pending_flight_info);
+      }
+      else
+      {
+        AIRPORT_ASSIGN_OR_RAISE_LOCATION(flight_info,
+                                         global_state.listing->Next(),
+                                         bind_data.server_location,
+                                         "");
+      }
 
       if (flight_info == nullptr)
       {
@@ -252,7 +263,7 @@ namespace duckdb
           endpoint_ticket_data[endpoint_list_current_size + endpoint_index] = StringVector::AddStringOrBlob(endpoint_entries[0], endpoint.ticket.ticket);
           if (endpoint.expiration_time.has_value())
           {
-            endpoint_expiration_data[endpoint_list_current_size + endpoint_index] = endpoint.expiration_time.value().time_since_epoch().count();
+            endpoint_expiration_data[endpoint_list_current_size + endpoint_index] = std::chrono::duration_cast<std::chrono::microseconds>(endpoint.expiration_time.value().time_since_epoch()).count();
           }
           else
           {
@@ -276,8 +287,8 @@ namespace duckdb
             endpoint_location_parts[endpoint_location_current_size + location_index] = StringVector::AddStringOrBlob(ListVector::GetChildMutable(endpoint_entries[1]), endpoint.locations[location_index].ToString());
           }
 
-          endpoint_location_data[endpoint_list_current_size].length = endpoint.locations.size();
-          endpoint_location_data[endpoint_list_current_size].offset = endpoint_location_current_size;
+          endpoint_location_data[endpoint_list_current_size + endpoint_index].length = endpoint.locations.size();
+          endpoint_location_data[endpoint_list_current_size + endpoint_index].offset = endpoint_location_current_size;
 
           ListVector::SetListSize(endpoint_entries[1], endpoint_location_new_size);
         }
@@ -288,8 +299,8 @@ namespace duckdb
         ListVector::SetListSize(output.data[1], endpoint_list_new_size);
 
         FlatVector::GetDataMutable<bool>(output.data[2])[output_row_index] = flight_info->ordered();
-        FlatVector::GetDataMutable<uint64_t>(output.data[3])[output_row_index] = flight_info->total_records();
-        FlatVector::GetDataMutable<uint64_t>(output.data[4])[output_row_index] = flight_info->total_bytes();
+        FlatVector::GetDataMutable<int64_t>(output.data[3])[output_row_index] = flight_info->total_records();
+        FlatVector::GetDataMutable<int64_t>(output.data[4])[output_row_index] = flight_info->total_bytes();
         FlatVector::GetDataMutable<string_t>(output.data[5])[output_row_index] = StringVector::AddStringOrBlob(output.data[5], flight_info->app_metadata());
 
         AirportLocationDescriptor location_descriptor(bind_data.server_location,
@@ -301,6 +312,10 @@ namespace duckdb
         AIRPORT_ASSIGN_OR_RAISE_LOCATION(flight_info, global_state.listing->Next(), bind_data.server_location, "");
         output_row_index++;
       }
+
+      // If the output chunk filled up, keep the flight that was already read
+      // so it is returned by the next call.
+      global_state.pending_flight_info = std::move(flight_info);
 
       output.SetCardinality(output_row_index);
     }
