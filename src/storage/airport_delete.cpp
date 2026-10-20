@@ -11,6 +11,7 @@
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/function/table/arrow/arrow_duck_schema.hpp"
 #include "duckdb/function/table/arrow.hpp"
+#include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "airport_macros.hpp"
 #include "airport_request_headers.hpp"
 #include "airport_flight_exception.hpp"
@@ -84,6 +85,8 @@ namespace duckdb
     DataChunk delete_chunk;
     //! DuckDB 2.0 appends the table's virtual columns (e.g. rowid) to the RETURNING types.
     DataChunk return_chunk;
+    //! The rowid values of the deleted rows as returned by the server.
+    DataChunk rowid_chunk;
   };
 
   class AirportDeleteGlobalState : public GlobalSinkState, public AirportExchangeGlobalState
@@ -193,22 +196,55 @@ namespace duckdb
     if (gstate.return_chunk)
     {
       gstate.ReadDataIntoChunk(ustate.delete_chunk);
+      const auto returned_count = ustate.delete_chunk.size();
       auto &return_chunk = ustate.return_chunk;
       return_chunk.Reset();
+
+      // The server returns the deleted rows with the table's schema, which normally
+      // includes the column marked as the rowid. Since the server may return fewer
+      // rows than were sent, the rowid must come from the returned data rather than
+      // from the rowids that were sent.
+      const auto returned_rowid_type = gstate.ReturnedRowIdType();
+      const bool have_rowid = returned_rowid_type.id() != LogicalTypeId::SQLNULL &&
+                              returned_count > 0 &&
+                              return_chunk.ColumnCount() > ustate.delete_chunk.ColumnCount();
+      if (have_rowid)
+      {
+        if (ustate.rowid_chunk.ColumnCount() == 0)
+        {
+          ustate.rowid_chunk.Initialize(Allocator::Get(context.client), {returned_rowid_type});
+        }
+        gstate.ReadRowIdIntoChunk(ustate.rowid_chunk, returned_count);
+      }
+
       for (idx_t col_idx = 0; col_idx < return_chunk.ColumnCount(); col_idx++)
       {
+        auto &target = return_chunk.data[col_idx];
         if (col_idx < ustate.delete_chunk.ColumnCount())
         {
-          return_chunk.data[col_idx].Reference(ustate.delete_chunk.data[col_idx]);
+          target.Reference(ustate.delete_chunk.data[col_idx]);
+        }
+        else if (have_rowid)
+        {
+          // The only virtual column of an Airport table is the rowid.
+          auto &rowid_values = ustate.rowid_chunk.data[0];
+          if (rowid_values.GetType() == target.GetType())
+          {
+            target.Reference(rowid_values);
+          }
+          else
+          {
+            VectorOperations::Cast(context.client, rowid_values, target, returned_count);
+          }
         }
         else
         {
-          // The server does not return virtual columns for the deleted rows.
-          return_chunk.data[col_idx].SetVectorType(VectorType::CONSTANT_VECTOR);
-          ConstantVector::SetNull(return_chunk.data[col_idx], true);
+          // The server did not return a rowid column for the deleted rows.
+          target.SetVectorType(VectorType::CONSTANT_VECTOR);
+          ConstantVector::SetNull(target, true);
         }
       }
-      return_chunk.SetCardinality(ustate.delete_chunk.size());
+      return_chunk.SetCardinality(returned_count);
       gstate.return_collection.Append(return_chunk);
     }
     return SinkResultType::NEED_MORE_INPUT;

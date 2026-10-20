@@ -122,6 +122,52 @@ namespace duckdb
       dest.Verify();
     }
 
+    //! The DuckDB type of the rowid column the server returned, or SQLNULL if the
+    //! server's returned schema has no column marked as the rowid.
+    LogicalType ReturnedRowIdType() const
+    {
+      auto &data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
+      if (data.rowid_column_index == COLUMN_IDENTIFIER_ROW_ID)
+      {
+        return LogicalType::SQLNULL;
+      }
+      return data.arrow_table.GetColumns().at(COLUMN_IDENTIFIER_ROW_ID)->GetDuckType();
+    }
+
+    //! Read the server's rowid column from the batch most recently read by
+    //! ReadDataIntoChunk() into the single column of dest, which must have the
+    //! type returned by ReturnedRowIdType().
+    void ReadRowIdIntoChunk(DataChunk &dest, idx_t count)
+    {
+      auto &data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
+      auto &state = scan_table_function_input->local_state->Cast<AirportArrowScanLocalState>();
+      D_ASSERT(data.rowid_column_index != COLUMN_IDENTIFIER_ROW_ID);
+      D_ASSERT(dest.ColumnCount() == 1);
+
+      dest.Reset();
+      dest.SetCardinality(count);
+
+      // Temporarily project only the rowid column, the scan maps it to the
+      // Arrow column marked as the rowid.
+      auto saved_column_ids = std::move(state.column_ids);
+      state.column_ids = {COLUMN_IDENTIFIER_ROW_ID};
+      try
+      {
+        ArrowTableFunction::ArrowToDuckDB(state,
+                                          data.arrow_table.GetColumns(),
+                                          dest,
+                                          false,
+                                          data.rowid_column_index);
+      }
+      catch (...)
+      {
+        state.column_ids = std::move(saved_column_ids);
+        throw;
+      }
+      state.column_ids = std::move(saved_column_ids);
+      dest.Verify();
+    }
+
     std::optional<uint64_t> ReadChangedCount(const string &server_location)
     {
       auto &bind_data = scan_table_function_input->bind_data->Cast<AirportTakeFlightBindData>();
