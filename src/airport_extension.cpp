@@ -26,7 +26,7 @@
 #include "airport_logging.hpp"
 #include "query_farm_telemetry.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "2026102001"
+#define AIRPORT_EXTENSION_VERSION "2026102002"
 
 namespace duckdb
 {
