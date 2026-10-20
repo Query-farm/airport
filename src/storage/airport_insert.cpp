@@ -1,3 +1,4 @@
+#include "duckdb/planner/expression/bound_constant_expression.hpp"
 #include "duckdb/execution/physical_plan_generator.hpp"
 #include "airport_extension.hpp"
 #include "storage/airport_insert.hpp"
@@ -110,6 +111,15 @@ namespace duckdb
     {
       for (auto &bound_default : bound_defaults)
       {
+        if (!bound_default)
+        {
+          // DuckDB 2.0 moves the defaults of omitted columns into the input projection, leaving
+          // empty slots here. They are only executed when column_index_map is populated, which
+          // DuckDB 2.0 no longer does; keep a placeholder so the indexes stay aligned.
+          placeholder_defaults.push_back(make_uniq<BoundConstantExpression>(Value()));
+          default_executor.AddExpression(*placeholder_defaults.back());
+          continue;
+        }
         default_executor.AddExpression(*bound_default);
       }
 
@@ -117,6 +127,7 @@ namespace duckdb
     }
 
     ConstraintState &GetConstraintState(TableCatalogEntry &table, TableCatalogEntry &tableref);
+    vector<unique_ptr<Expression>> placeholder_defaults;
     ExpressionExecutor default_executor;
     const vector<unique_ptr<BoundConstraint>> &bound_constraints_;
     unique_ptr<ConstraintState> constraint_state_;

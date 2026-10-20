@@ -38,6 +38,14 @@
 #include <openssl/evp.h>
 #include "airport_rpc.hpp"
 #include "airport_logging.hpp"
+#include "duckdb/planner/expression_iterator.hpp"
+#include "duckdb/planner/expression/bound_function_expression.hpp"
+#include "duckdb/planner/expression/bound_comparison_expression.hpp"
+#include "duckdb/planner/expression/bound_cast_expression.hpp"
+#include "duckdb/planner/expression/bound_between_expression.hpp"
+#include "duckdb/planner/expression/legacy_bound_comparison_expression.hpp"
+#include "duckdb/planner/expression/legacy_bound_cast_expression.hpp"
+#include "duckdb/planner/expression/legacy_bound_between_expression.hpp"
 
 namespace duckdb
 {
@@ -516,6 +524,90 @@ namespace duckdb
     return make_uniq<NodeStatistics>();
   }
 
+  // DuckDB 2.0 represents comparisons, casts and BETWEEN as bound function expressions.
+  // Airport servers parse the filter JSON in the format DuckDB 1.x produced, so convert
+  // those expressions back to their legacy classes before serializing them.
+  static void AirportConvertFilterToLegacyFormat(unique_ptr<Expression> &expr)
+  {
+    ExpressionIterator::EnumerateChildren(*expr, [](unique_ptr<Expression> &child)
+                                          { AirportConvertFilterToLegacyFormat(child); });
+
+    if (expr->GetExpressionClass() != ExpressionClass::BOUND_FUNCTION)
+    {
+      return;
+    }
+    auto &func = expr->Cast<BoundFunctionExpression>();
+    unique_ptr<Expression> legacy;
+    if (BoundComparisonExpression::IsComparison(*expr))
+    {
+      legacy = make_uniq<LegacyBoundComparisonExpression>(expr->GetExpressionType(),
+                                                          std::move(BoundComparisonExpression::LeftMutable(func)),
+                                                          std::move(BoundComparisonExpression::RightMutable(func)));
+    }
+    else if (BoundCastExpression::IsCast(*expr))
+    {
+      auto try_cast = BoundCastExpression::HasValidBindData(func) && BoundCastExpression::IsTryCast(func);
+      legacy = make_uniq<LegacyBoundCastExpression>(std::move(BoundCastExpression::ChildMutable(func)),
+                                                    expr->GetReturnType(), try_cast);
+    }
+    else if (expr->GetExpressionType() == ExpressionType::COMPARE_BETWEEN && BoundBetweenExpression::HasValidBindData(func))
+    {
+      auto lower_inclusive = BoundBetweenExpression::LowerInclusive(func);
+      auto upper_inclusive = BoundBetweenExpression::UpperInclusive(func);
+      legacy = make_uniq<LegacyBoundBetweenExpression>(std::move(BoundBetweenExpression::InputMutable(func)),
+                                                       std::move(BoundBetweenExpression::LowerBoundMutable(func)),
+                                                       std::move(BoundBetweenExpression::UpperBoundMutable(func)),
+                                                       lower_inclusive, upper_inclusive);
+    }
+    if (!legacy)
+    {
+      return;
+    }
+    legacy->SetReturnType(expr->GetReturnType());
+    legacy->SetAlias(expr->GetAlias());
+    legacy->SetQueryLocation(expr->GetQueryLocation());
+    expr = std::move(legacy);
+  }
+
+  // The legacy expression classes were renamed with a LEGACY_ prefix in DuckDB 2.0;
+  // restore the names DuckDB 1.x wrote.
+  static void AirportRenameLegacyExpressionClasses(yyjson_mut_doc *doc, yyjson_mut_val *val)
+  {
+    if (yyjson_mut_is_obj(val))
+    {
+      size_t idx, max;
+      yyjson_mut_val *key, *child;
+      yyjson_mut_obj_foreach(val, idx, max, key, child)
+      {
+        if (yyjson_mut_is_str(child) && strcmp(yyjson_mut_get_str(key), "expression_class") == 0)
+        {
+          // The value points either to a static enum name or to memory owned by the document,
+          // so the suffix after the prefix stays valid for the lifetime of the document.
+          const char *class_name = yyjson_mut_get_str(child);
+          const size_t class_name_len = yyjson_mut_get_len(child);
+          constexpr size_t prefix_len = 7;
+          if (class_name_len > prefix_len && strncmp(class_name, "LEGACY_", prefix_len) == 0)
+          {
+            yyjson_mut_set_strn(child, class_name + prefix_len, class_name_len - prefix_len);
+          }
+        }
+        else
+        {
+          AirportRenameLegacyExpressionClasses(doc, child);
+        }
+      }
+    }
+    else if (yyjson_mut_is_arr(val))
+    {
+      size_t idx, max;
+      yyjson_mut_val *child;
+      yyjson_mut_arr_foreach(val, idx, max, child)
+      {
+        AirportRenameLegacyExpressionClasses(doc, child);
+      }
+    }
+  }
+
   void AirportTakeFlightComplexFilterPushdown(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
                                               vector<unique_ptr<Expression>> &filters)
   {
@@ -531,9 +623,13 @@ namespace duckdb
 
     for (auto &f : filters)
     {
+      auto legacy_filter = f->Copy();
+      AirportConvertFilterToLegacyFormat(legacy_filter);
       auto serializer = AirportJsonSerializer(doc, false, false, false);
-      f->Serialize(serializer);
-      yyjson_mut_arr_append(filters_arr, serializer.GetRootObject());
+      legacy_filter->Serialize(serializer);
+      auto filter_obj = serializer.GetRootObject();
+      AirportRenameLegacyExpressionClasses(doc, filter_obj);
+      yyjson_mut_arr_append(filters_arr, filter_obj);
     }
 
     yyjson_mut_val *column_id_names = yyjson_mut_arr(doc);
