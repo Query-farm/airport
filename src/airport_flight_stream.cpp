@@ -128,12 +128,10 @@ namespace duckdb
         (&bind_data),
         "Failed to read batch from DuckDB function call arguments arrow table")
 
-    ArrowSchema c_schema;
-
     auto current_chunk = make_uniq<ArrowArrayWrapper>();
 
     AIRPORT_ARROW_ASSERT_OK_CONTAINER(
-        arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array, &c_schema),
+        arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array),
         (&bind_data),
         "Failed to export record batch from DuckDB function call arguments arrow table");
 
@@ -196,20 +194,25 @@ namespace duckdb
         execution_context(context, thread_context, nullptr),
         finished_chunk(false)
   {
+    // Endpoint delegation only supports scan functions. Some table functions
+    // (e.g. range) use the in/out API instead of a scan callback.
+    if (!func.bind || !func.function)
+    {
+      throw NotImplementedException("Airport: local endpoint table function '%s' does not support the scan API", func.name);
+    }
+
     vector<LogicalType> input_types;
     vector<string> input_names;
 
     TableFunctionRef empty;
-    TableFunction dummy_table_function;
-    dummy_table_function.name = "AirportEndpointScan";
     TableFunctionBindInput bind_input(
         argument_values,
         named_params,
         input_types,
         input_names,
+        func.function_info.get(),
         nullptr,
-        nullptr,
-        dummy_table_function,
+        func,
         empty);
 
     bind_data = func.bind(
@@ -301,9 +304,14 @@ namespace duckdb
     //                                    .c_str());
     input.bind_data = bind_data.get();
 
-    global_state = func.init_global(context, input);
-
-    local_state = func.init_local(execution_context, input, global_state.get());
+    if (func.init_global)
+    {
+      global_state = func.init_global(context, input);
+    }
+    if (func.init_local)
+    {
+      local_state = func.init_local(execution_context, input, global_state.get());
+    }
   }
 
   struct AirportScannerProgress

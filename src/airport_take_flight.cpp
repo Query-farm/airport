@@ -1,4 +1,5 @@
 #include "airport_extension.hpp"
+#include "airport_function_description.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/types/vector.hpp"
 
@@ -1170,18 +1171,18 @@ namespace duckdb
     take_flight_function_set.AddFunction(take_flight_function_with_pointer);
 
     CreateTableFunctionInfo info(take_flight_function_set);
+    info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
 
     FunctionDescription with_descriptor_desc;
-    with_descriptor_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::ANY};
-    with_descriptor_desc.parameter_names = {"location", "descriptor"};
+    AirportSetTableFunctionParameters(with_descriptor_desc, take_flight_function_with_descriptor, {"location", "descriptor"});
     with_descriptor_desc.description = "Read an Arrow Flight stream from a server using a flight descriptor (path or command).";
     with_descriptor_desc.examples = {"SELECT * FROM airport_take_flight('grpc://localhost:8815', ['my_table']);"};
     with_descriptor_desc.categories = {"airport"};
     info.descriptions.push_back(std::move(with_descriptor_desc));
 
     FunctionDescription with_pointer_desc;
-    with_pointer_desc.parameter_types = {LogicalType::POINTER, LogicalType::POINTER, LogicalType::VARCHAR};
-    with_pointer_desc.parameter_names = {"table_pointer", "table_entry_pointer", "transaction_id"};
+    AirportSetTableFunctionParameters(with_pointer_desc, take_flight_function_with_pointer,
+                                     {"table_pointer", "table_entry_pointer", "transaction_id"});
     with_pointer_desc.description = "Read an Arrow Flight stream from a server using internal pointers (used by the catalog).";
     with_pointer_desc.categories = {"airport"};
     info.descriptions.push_back(std::move(with_pointer_desc));

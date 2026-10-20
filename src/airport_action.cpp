@@ -1,4 +1,5 @@
 #include "airport_extension.hpp"
+#include "airport_function_description.hpp"
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/types/vector.hpp"
@@ -222,18 +223,17 @@ namespace duckdb
     do_action_functions.AddFunction(without_parameter);
 
     CreateTableFunctionInfo info(do_action_functions);
+    info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
 
     FunctionDescription with_parameter_desc;
-    with_parameter_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
-    with_parameter_desc.parameter_names = {"location", "action_name", "parameter"};
+    AirportSetTableFunctionParameters(with_parameter_desc, with_parameter, {"location", "action_name", "parameter"});
     with_parameter_desc.description = "Execute an Arrow Flight action on a server with a parameter.";
     with_parameter_desc.examples = {"SELECT * FROM airport_action('grpc://localhost:8815', 'my_action', 'param');"};
     with_parameter_desc.categories = {"airport"};
     info.descriptions.push_back(std::move(with_parameter_desc));
 
     FunctionDescription without_parameter_desc;
-    without_parameter_desc.parameter_types = {LogicalType::VARCHAR, LogicalType::VARCHAR};
-    without_parameter_desc.parameter_names = {"location", "action_name"};
+    AirportSetTableFunctionParameters(without_parameter_desc, without_parameter, {"location", "action_name"});
     without_parameter_desc.description = "Execute an Arrow Flight action on a server.";
     without_parameter_desc.examples = {"SELECT * FROM airport_action('grpc://localhost:8815', 'my_action');"};
     without_parameter_desc.categories = {"airport"};

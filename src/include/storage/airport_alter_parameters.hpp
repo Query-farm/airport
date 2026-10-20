@@ -116,7 +116,7 @@ namespace duckdb
       auto client_properties = context.GetClientProperties();
       ArrowConverter::ToArrowSchema(&send_schema,
                                     {info.new_field.Type()},
-                                    {info.column_path},
+                                    {info.new_field.Name()},
                                     client_properties);
 
       std::shared_ptr<arrow::Schema> cpp_schema;

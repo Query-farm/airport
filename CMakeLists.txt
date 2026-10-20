@@ -50,6 +50,7 @@ set(EXTENSION_SOURCES
   src/storage/airport_update_parameterized.cpp
   src/airport_request_headers.cpp
   src/airport_optimizer.cpp
+  src/airport_table_in_out.cpp
   src/airport_constraints.cpp
   src/airport_scalar_function.cpp
   src/airport_flight_statistics.cpp

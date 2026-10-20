@@ -140,12 +140,10 @@ namespace duckdb
         &descriptor,
         "Failed to read batch from statistics arrow table");
 
-    ArrowSchema c_schema;
-
     auto current_chunk = make_uniq<ArrowArrayWrapper>();
 
     AIRPORT_ARROW_ASSERT_OK_CONTAINER(
-        arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array, &c_schema),
+        arrow::ExportRecordBatch(*batch, &current_chunk->arrow_array),
         &descriptor,
         "Failed to export record batch from statistics arrow table");
 
