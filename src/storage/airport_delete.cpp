@@ -75,12 +75,15 @@ namespace duckdb
   class AirportDeleteLocalState : public LocalSinkState
   {
   public:
-    AirportDeleteLocalState(ClientContext &context, TableCatalogEntry &table)
+    AirportDeleteLocalState(ClientContext &context, TableCatalogEntry &table, const vector<LogicalType> &return_types)
     //                            const vector<unique_ptr<BoundConstraint>> &bound_constraints)
     {
       delete_chunk.Initialize(Allocator::Get(context), table.GetTypes());
+      return_chunk.Initialize(Allocator::Get(context), return_types);
     }
     DataChunk delete_chunk;
+    //! DuckDB 2.0 appends the table's virtual columns (e.g. rowid) to the RETURNING types.
+    DataChunk return_chunk;
   };
 
   class AirportDeleteGlobalState : public GlobalSinkState, public AirportExchangeGlobalState
@@ -140,7 +143,7 @@ namespace duckdb
 
   unique_ptr<LocalSinkState> AirportDelete::GetLocalSinkState(ExecutionContext &context) const
   {
-    return make_uniq<AirportDeleteLocalState>(context.client, table);
+    return make_uniq<AirportDeleteLocalState>(context.client, table, GetTypes());
   }
 
   //===--------------------------------------------------------------------===//
@@ -190,7 +193,23 @@ namespace duckdb
     if (gstate.return_chunk)
     {
       gstate.ReadDataIntoChunk(ustate.delete_chunk);
-      gstate.return_collection.Append(ustate.delete_chunk);
+      auto &return_chunk = ustate.return_chunk;
+      return_chunk.Reset();
+      for (idx_t col_idx = 0; col_idx < return_chunk.ColumnCount(); col_idx++)
+      {
+        if (col_idx < ustate.delete_chunk.ColumnCount())
+        {
+          return_chunk.data[col_idx].Reference(ustate.delete_chunk.data[col_idx]);
+        }
+        else
+        {
+          // The server does not return virtual columns for the deleted rows.
+          return_chunk.data[col_idx].SetVectorType(VectorType::CONSTANT_VECTOR);
+          ConstantVector::SetNull(return_chunk.data[col_idx], true);
+        }
+      }
+      return_chunk.SetCardinality(ustate.delete_chunk.size());
+      gstate.return_collection.Append(return_chunk);
     }
     return SinkResultType::NEED_MORE_INPUT;
   }

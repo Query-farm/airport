@@ -371,6 +371,10 @@ namespace duckdb
                                                PhysicalOperator &plan)
   {
     auto &airport_table = op.table.Cast<AirportTableEntry>();
+    if (op.capture_old_rows)
+    {
+      throw BinderException("RETURNING the old row values is not yet supported for updates of an Airport table");
+    }
     for (const auto &expr : op.expressions)
     {
       if (expr->GetExpressionType() == ExpressionType::VALUE_DEFAULT)

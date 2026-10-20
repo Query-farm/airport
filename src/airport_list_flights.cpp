@@ -323,9 +323,7 @@ namespace duckdb
 
       for (auto &f : filters)
       {
-        auto serializer = AirportJsonSerializer(doc, true, true, true);
-        f->Serialize(serializer);
-        yyjson_mut_arr_append(filters_arr, serializer.GetRootObject());
+        yyjson_mut_arr_append(filters_arr, AirportSerializeFilterExpression(doc, *f, true, true, true));
       }
 
       yyjson_mut_obj_add_val(doc, result_obj, "filters", filters_arr);

@@ -608,6 +608,18 @@ namespace duckdb
     }
   }
 
+  yyjson_mut_val *AirportSerializeFilterExpression(yyjson_mut_doc *doc, const Expression &filter, bool skip_if_null,
+                                                   bool skip_if_empty, bool skip_if_default)
+  {
+    auto legacy_filter = filter.Copy();
+    AirportConvertFilterToLegacyFormat(legacy_filter);
+    auto serializer = AirportJsonSerializer(doc, skip_if_null, skip_if_empty, skip_if_default);
+    legacy_filter->Serialize(serializer);
+    auto filter_obj = serializer.GetRootObject();
+    AirportRenameLegacyExpressionClasses(doc, filter_obj);
+    return filter_obj;
+  }
+
   void AirportTakeFlightComplexFilterPushdown(ClientContext &context, LogicalGet &get, FunctionData *bind_data_p,
                                               vector<unique_ptr<Expression>> &filters)
   {
@@ -623,13 +635,7 @@ namespace duckdb
 
     for (auto &f : filters)
     {
-      auto legacy_filter = f->Copy();
-      AirportConvertFilterToLegacyFormat(legacy_filter);
-      auto serializer = AirportJsonSerializer(doc, false, false, false);
-      legacy_filter->Serialize(serializer);
-      auto filter_obj = serializer.GetRootObject();
-      AirportRenameLegacyExpressionClasses(doc, filter_obj);
-      yyjson_mut_arr_append(filters_arr, filter_obj);
+      yyjson_mut_arr_append(filters_arr, AirportSerializeFilterExpression(doc, *f, false, false, false));
     }
 
     yyjson_mut_val *column_id_names = yyjson_mut_arr(doc);

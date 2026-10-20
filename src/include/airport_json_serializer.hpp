@@ -29,6 +29,10 @@ public:
 	    : doc(doc), stack({yyjson_mut_obj(doc)}), skip_if_null(skip_if_null), skip_if_empty(skip_if_empty) {
 		options.serialize_enum_as_string = true;
 		options.serialize_default_values = !skip_if_default;
+		// Airport servers parse the JSON that DuckDB 1.x produced; write expressions and functions in
+		// that format (e.g. functions carry their "name" rather than a DuckDB 2.0 qualified name, and
+		// nested values carry the types of their children). DuckDB 1.x defaulted to v1.0.0 compatibility.
+		options.storage_compatibility = StorageCompatibility::FromIndex(StorageVersion::V1_0_0);
 	}
 
 	template <class T>
@@ -81,5 +85,9 @@ public:
 	void WriteValue(bool value) final;
 	void WriteDataPtr(const_data_ptr_t ptr, idx_t count) final;
 };
+
+//! Serialize a filter expression to JSON in the DuckDB 1.x format that Airport servers parse.
+yyjson_mut_val *AirportSerializeFilterExpression(yyjson_mut_doc *doc, const Expression &filter, bool skip_if_null,
+                                                 bool skip_if_empty, bool skip_if_default);
 
 } // namespace duckdb
