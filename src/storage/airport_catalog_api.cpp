@@ -101,25 +101,48 @@ namespace duckdb
     throw NotImplementedException("AirportAPI::GetCatalogs");
   }
 
-  static std::unordered_map<std::string, std::shared_ptr<flight::FlightClient>> airport_flight_clients_by_location;
-  static std::mutex airport_clients_mutex;
+  namespace
+  {
+    // Process-wide cache of Flight clients, one per server location.
+    //
+    // Heap-allocated and intentionally never freed. As a plain static it was
+    // destroyed by the extension's static destructors, which on Windows run
+    // from DllMain(DLL_PROCESS_DETACH) during ExitProcess -- after every other
+    // thread has already been terminated. Destroying a gRPC-backed client there
+    // destroys a condition variable that a now-dead gRPC thread was waiting on;
+    // with MinGW's winpthreads, pthread_cond_destroy then blocks forever, so
+    // any process that had used Airport never exited. The OS reclaims the
+    // clients at process exit anyway.
+    struct AirportFlightClientCache
+    {
+      std::mutex lock;
+      std::unordered_map<std::string, std::shared_ptr<flight::FlightClient>> clients_by_location;
+    };
+
+    AirportFlightClientCache &GetAirportFlightClientCache()
+    {
+      static auto *cache = new AirportFlightClientCache();
+      return *cache;
+    }
+  }
 
   std::shared_ptr<flight::FlightClient> AirportAPI::FlightClientForLocation(const std::string &location)
   {
-    std::lock_guard<std::mutex> lock(airport_clients_mutex);
-    auto it = airport_flight_clients_by_location.find(location);
-    if (it != airport_flight_clients_by_location.end())
+    auto &cache = GetAirportFlightClientCache();
+    std::lock_guard<std::mutex> lock(cache.lock);
+    auto it = cache.clients_by_location.find(location);
+    if (it != cache.clients_by_location.end())
     {
       return it->second;
     }
 
     AIRPORT_ASSIGN_OR_RAISE_LOCATION(auto parsed_location,
                                      flight::Location::Parse(location), location, "");
-    AIRPORT_ASSIGN_OR_RAISE_LOCATION(airport_flight_clients_by_location[location],
+    AIRPORT_ASSIGN_OR_RAISE_LOCATION(cache.clients_by_location[location],
                                      flight::FlightClient::Connect(parsed_location),
                                      location, "");
 
-    return airport_flight_clients_by_location[location];
+    return cache.clients_by_location[location];
   }
 
   namespace
