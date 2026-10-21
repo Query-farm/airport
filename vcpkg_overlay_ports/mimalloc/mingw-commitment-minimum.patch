@@ -1,0 +1,14 @@
+--- a/src/prim/windows/prim.c
++++ b/src/prim/windows/prim.c
+@@ -272,6 +272,11 @@
+   return VirtualAlloc(addr, size, flags, PAGE_READWRITE);
+ }
+ 
++// Older MinGW-w64 headers (e.g. Rtools 4.2) do not define this (winerror.h value 635).
++#ifndef ERROR_COMMITMENT_MINIMUM
++#define ERROR_COMMITMENT_MINIMUM 635
++#endif
++
+ static bool win_is_out_of_memory_error(DWORD err) {
+   switch (err) {
+     case ERROR_COMMITMENT_MINIMUM:
