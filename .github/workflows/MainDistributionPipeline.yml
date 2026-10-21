@@ -12,10 +12,17 @@ concurrency:
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
-    uses: Query-farm/extension-ci-tools/.github/workflows/_extension_distribution.yml@query-farm
+    uses: Query-farm/extension-ci-tools/.github/workflows/build.yml@query-farm
     with:
-      duckdb_version: v2.0-cyanoptera
+      duckdb_version: v2.0.0
       ci_tools_version: query-farm
-      extension_name: airport
+      groups: |
+        main:
+          config: extension_config.cmake
+          toolchain: main
+      exclude_archs: wasm_mvp;wasm_eh;wasm_threads
+      # The stub test LOADs the binary from {BUILD_DIRECTORY}/extension/, which the
+      # separate test jobs do not restore; the build jobs already run it on each binary.
+      test_jobs: false
     secrets:
       ccache_remote_token: ${{ secrets.QUERY_FARM_CCACHE_TOKEN }}
