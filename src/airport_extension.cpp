@@ -1,371 +1,172 @@
+#define DUCKDB_EXTENSION_MAIN
+
 #include "airport_extension.hpp"
-#include "airport_table_in_out.hpp"
-#include "duckdb/planner/planner_extension.hpp"
-#include "duckdb.hpp"
-
-#include "duckdb/main/secret/secret_manager.hpp"
-#include "duckdb/parser/parsed_data/attach_info.hpp"
-#include "duckdb/storage/storage_extension.hpp"
-#include "duckdb/main/attached_database.hpp"
-#include "duckdb/logging/log_manager.hpp"
-#include "duckdb/parser/parser.hpp"
-#include "duckdb/parser/expression/columnref_expression.hpp"
-#include "duckdb/parser/expression/constant_expression.hpp"
-#include "duckdb/parser/statement/select_statement.hpp"
-#include "duckdb/parser/parsed_data/create_macro_info.hpp"
-#include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
-#include "duckdb/function/table_macro_function.hpp"
-#include "duckdb/catalog/default/default_functions.hpp"
-#include "storage/airport_catalog.hpp"
-#include "storage/airport_transaction_manager.hpp"
-#include "airport_secrets.hpp"
-#include "airport_optimizer.hpp"
-#include "airport_scalar_function.hpp"
-#include "airport_json_common.hpp"
+#include "duckdb/common/error_data.hpp"
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/file_system.hpp"
 #include "duckdb/main/extension_helper.hpp"
-#include "airport_logging.hpp"
-#include "query_farm_telemetry.hpp"
+#include "duckdb/main/extension_load_options.hpp"
+#include "duckdb/main/extension_repository_manager.hpp"
 
-#define AIRPORT_EXTENSION_VERSION "2026102002"
+// For DuckDB 2.0 and later this extension is distributed from the Query.Farm extension repository. The build published to the
+// DuckDB community repository only keeps the name. When the user has already added the Query.Farm repository and
+// installed the extension from it, loading this build loads that one; otherwise it explains the remaining steps.
+// It never adds the repository or installs anything itself: trusting a repository is the user's decision.
 
-namespace duckdb
-{
+namespace duckdb {
 
-    static unique_ptr<BaseSecret> CreateAirportSecretFunction(ClientContext &, CreateSecretInput &input)
-    {
-        // apply any overridden settings
-        vector<string> prefix_paths;
+static constexpr const char *EXTENSION_NAME = "airport";
+static constexpr const char *EXTENSION_VERSION = "2026102001";
+static constexpr const char *REPOSITORY_NAME = "query_farm";
+static constexpr const char *REPOSITORY_URL = "https://duckdb-extensions.query.farm";
+static constexpr const char *REPOSITORY_HTTP_URL = "http://duckdb-extensions.query.farm";
+// sha256 fingerprints of the Query.Farm repository signing keys (primary and standby)
+static constexpr const char *REPOSITORY_KEY_FINGERPRINTS[] = {
+    "sha256:b293ba6145db8f51f301618f59a720cb8c0c21e7efc6119aab43ea5c708947b5",
+    "sha256:6959de1c16b783b14d4c904f69361811f737017d79ea7078729a74ec2f7f7753"};
 
-        auto scope = input.scope;
-        if (scope.empty())
-        {
-            throw InternalException("No scope set Airport create secret (should start with grpc://): '%s'", input.type);
-        }
+static string MovedPreamble() {
+	return StringUtil::Format("The %s extension for DuckDB 2.0 and later is distributed from the Query.Farm extension repository, "
+	                          "not the DuckDB community repository.\n\n",
+	                          EXTENSION_NAME);
+}
 
-        auto result = make_uniq<KeyValueSecret>(scope, "airport", "config", input.name);
-        for (const auto &named_param : input.options)
-        {
-            auto lower_name = StringUtil::Lower(named_param.first);
+static string MoreInformation() {
+	return StringUtil::Format("\n\nMore information: https://query.farm/products/extensions/%s/", EXTENSION_NAME);
+}
 
-            if (lower_name == "auth_token")
-            {
-                result->secret_map["auth_token"] = named_param.second.ToString();
-            }
-            else
-            {
-                throw InternalException("Unknown named parameter passed to CreateAirportSecretFunction: " + lower_name);
-            }
-        }
+static bool IsInstalledFromRepository(DatabaseInstance &db, FileSystem &fs) {
+	for (auto &directory : ExtensionHelper::GetExtensionDirectoryPath(db, fs)) {
+		auto path = fs.JoinPath(fs.JoinPath(fs.JoinPath(directory, "repositories"), REPOSITORY_NAME),
+		                        string(EXTENSION_NAME) + ".duckdb_extension");
+		if (fs.FileExists(path)) {
+			return true;
+		}
+	}
+	return false;
+}
 
-        //! Set redact keys
-        result->redact_keys = {"auth_token"};
+// A repository named query_farm is only used when it points at the Query.Farm prefix and pins a Query.Farm signing key.
+static bool IsQueryFarmRepository(const ExtensionRepository &repository) {
+	auto prefix = StringUtil::Lower(repository.path);
+	while (StringUtil::EndsWith(prefix, "/")) {
+		prefix.pop_back();
+	}
+	if (prefix != REPOSITORY_URL && prefix != REPOSITORY_HTTP_URL) {
+		return false;
+	}
+	for (auto &key : repository.public_keys) {
+		auto fingerprint = ExtensionRepositoryManager::GetPublicKeyFingerprint(key);
+		for (auto trusted : REPOSITORY_KEY_FINGERPRINTS) {
+			if (fingerprint == trusted) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
-        return result;
-    }
+static void LoadFromQueryFarmOrExplain(DatabaseInstance &db) {
+	auto &fs = FileSystem::GetFileSystem(db);
+	ExtensionRepository repository;
+	bool has_repository = ExtensionRepositoryManager::TryGetRepository(db, fs, REPOSITORY_NAME, repository);
 
-    struct ParsedURL
-    {
-        std::string location; // e.g. grpc+tls://hello-airport.query.farm
-        std::string path;     // e.g. hello (no leading /)
-        std::unordered_map<std::string, std::string> options;
-    };
+	if (!has_repository) {
+		throw MissingExtensionException(
+		    "%sAdd the repository and install the extension once:\n"
+		    "\n"
+		    "    SET allow_extension_repositories = 'allowed';\n"
+		    "    CREATE EXTENSION REPOSITORY IF NOT EXISTS %s WITH PREFIX '%s';\n"
+		    "    INSTALL %s FROM %s;\n"
+		    "\n"
+		    "Then load it in each session with:\n"
+		    "\n"
+		    "    LOAD %s FROM %s;%s",
+		    MovedPreamble(), REPOSITORY_NAME, REPOSITORY_URL, EXTENSION_NAME, REPOSITORY_NAME, EXTENSION_NAME,
+		    REPOSITORY_NAME, MoreInformation());
+	}
+	if (!IsQueryFarmRepository(repository)) {
+		throw MissingExtensionException(
+		    "%sA repository named %s is configured with the prefix '%s', but it is not the Query.Farm extension "
+		    "repository: it points somewhere else or does not use the Query.Farm signing keys, so the extension is not "
+		    "loaded from it. Replace it with the Query.Farm repository and reinstall the extension:\n"
+		    "\n"
+		    "    SET allow_extension_repositories = 'allowed';\n"
+		    "    CREATE OR REPLACE EXTENSION REPOSITORY %s WITH PREFIX '%s';\n"
+		    "    FORCE INSTALL %s FROM %s;\n"
+		    "\n"
+		    "Then load it in each session with:\n"
+		    "\n"
+		    "    LOAD %s FROM %s;%s",
+		    MovedPreamble(), REPOSITORY_NAME, repository.path, REPOSITORY_NAME, REPOSITORY_URL, EXTENSION_NAME,
+		    REPOSITORY_NAME, EXTENSION_NAME, REPOSITORY_NAME, MoreInformation());
+	}
+	if (ExtensionRepositoryManager::GetAccess(db) == ExtensionRepositoryAccess::FORBIDDEN) {
+		throw MissingExtensionException("%sThe %s repository is configured, but allow_extension_repositories is set to "
+		                                "'forbidden', so extensions from it cannot be loaded.%s",
+		                                MovedPreamble(), REPOSITORY_NAME, MoreInformation());
+	}
+	if (!IsInstalledFromRepository(db, fs)) {
+		throw MissingExtensionException("%sThe %s repository is already configured. Install the extension from it once:\n"
+		                                "\n"
+		                                "    SET allow_extension_repositories = 'allowed';\n"
+		                                "    INSTALL %s FROM %s;\n"
+		                                "\n"
+		                                "Then load it in each session with:\n"
+		                                "\n"
+		                                "    LOAD %s FROM %s;%s",
+		                                MovedPreamble(), REPOSITORY_NAME, EXTENSION_NAME, REPOSITORY_NAME,
+		                                EXTENSION_NAME, REPOSITORY_NAME, MoreInformation());
+	}
 
-    static ParsedURL parse_url(const std::string &url)
-    {
-        ParsedURL result;
+	// The repository is trusted and the extension is installed from it: load that build. DuckDB holds the load lock
+	// for this name while this stub initializes, so the real extension is loaded under an alias; its functions are
+	// registered as usual.
+	ExtensionLoadOptions options(EXTENSION_NAME);
+	options.repository = REPOSITORY_NAME;
+	options.alias = Identifier(string(EXTENSION_NAME) + "_" + REPOSITORY_NAME);
+	try {
+		ExtensionHelper::LoadExternalExtension(db, fs, options);
+	} catch (std::exception &ex) {
+		ErrorData error(ex);
+		if (error.Type() != ExceptionType::IO || !StringUtil::Contains(error.RawMessage(), "signature")) {
+			throw;
+		}
+		throw MissingExtensionException(
+		    "%sThe %s extension installed from the %s repository failed signature verification. The file may be "
+		    "damaged, or it was signed with a key that this repository definition does not trust. Reinstall it:\n"
+		    "\n"
+		    "    SET allow_extension_repositories = 'allowed';\n"
+		    "    FORCE INSTALL %s FROM %s;\n"
+		    "\n"
+		    "If loading still fails the same way, refresh the repository's signing keys and reinstall:\n"
+		    "\n"
+		    "    CREATE OR REPLACE EXTENSION REPOSITORY %s WITH PREFIX '%s';\n"
+		    "    FORCE INSTALL %s FROM %s;\n"
+		    "\n"
+		    "Do not use -unsigned to work around this.%s",
+		    MovedPreamble(), EXTENSION_NAME, REPOSITORY_NAME, EXTENSION_NAME, REPOSITORY_NAME, REPOSITORY_NAME,
+		    REPOSITORY_URL, EXTENSION_NAME, REPOSITORY_NAME, MoreInformation());
+	}
+}
 
-        // Separate query string
-        size_t query_pos = url.find('?');
-        std::string base = (query_pos == std::string::npos) ? url : url.substr(0, query_pos);
-        std::string query = (query_pos == std::string::npos) ? "" : url.substr(query_pos + 1);
+void AirportExtension::Load(ExtensionLoader &loader) {
+	LoadFromQueryFarmOrExplain(loader.GetDatabaseInstance());
+}
 
-        // Extract scheme and authority
-        size_t scheme_end = base.find("://");
-        if (scheme_end == std::string::npos)
-        {
-            throw std::runtime_error("Invalid URL: missing scheme");
-        }
-        size_t path_start = base.find('/', scheme_end + 3);
-        result.location = (path_start == std::string::npos) ? base : base.substr(0, path_start);
+std::string AirportExtension::Name() {
+	return EXTENSION_NAME;
+}
 
-        if (path_start != std::string::npos && path_start + 1 < base.size())
-        {
-            result.path = base.substr(path_start + 1); // skip leading '/'
-        }
-        else
-        {
-            result.path = ""; // no path
-        }
-
-        // Parse query into map
-        std::istringstream ss(query);
-        std::string token;
-        while (std::getline(ss, token, '&'))
-        {
-            size_t eq = token.find('=');
-            if (eq != std::string::npos)
-            {
-                std::string key = token.substr(0, eq);
-                std::string value = token.substr(eq + 1);
-                result.options[key] = value;
-            }
-        }
-
-        return result;
-    }
-
-    static unique_ptr<Catalog> AirportCatalogAttach(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
-                                                    AttachedDatabase &db, const string &name, AttachInfo &info,
-                                                    AttachOptions &options)
-    {
-        string secret_name;
-        string auth_token;
-        string location;
-
-        string db_name = info.path;
-
-        if (!info.path.empty() && (info.path.compare(0, 7, "grpc://") == 0 || info.path.compare(0, 11, "grpc+tls://") == 0))
-        {
-            auto parsed_url_result = parse_url(info.path);
-            db_name = parsed_url_result.path;
-            location = parsed_url_result.location;
-
-            for (auto &entry : parsed_url_result.options)
-            {
-                auto lower_name = StringUtil::Lower(entry.first);
-                if (lower_name == "secret")
-                {
-                    secret_name = entry.second;
-                }
-                else if (lower_name == "auth_token")
-                {
-                    auth_token = entry.second;
-                }
-                else
-                {
-                    throw BinderException("Unrecognized option for Airport ATTACH: %s", entry.first);
-                }
-            }
-        }
-
-        // check if we have a secret provided
-        for (auto &entry : info.options)
-        {
-            auto lower_name = StringUtil::Lower(entry.first);
-            if (lower_name == "type")
-            {
-                continue;
-            }
-            else if (lower_name == "secret")
-            {
-                secret_name = entry.second.ToString();
-            }
-            else if (lower_name == "auth_token")
-            {
-                auth_token = entry.second.ToString();
-            }
-            else if (lower_name == "location")
-            {
-                location = entry.second.ToString();
-            }
-            else
-            {
-                throw BinderException("Unrecognized option for Airport ATTACH: %s", entry.first);
-            }
-        }
-
-        auth_token = AirportAuthTokenForLocation(context, location, secret_name, auth_token);
-
-        if (location.empty())
-        {
-            throw BinderException("No location provided for Airport ATTACH.");
-        }
-
-        return make_uniq<AirportCatalog>(db, db_name, options.access_mode, AirportAttachParameters(location, auth_token, secret_name, ""));
-    }
-
-    static unique_ptr<TransactionManager> CreateTransactionManager(optional_ptr<StorageExtensionInfo> storage_info, AttachedDatabase &db,
-                                                                   Catalog &catalog)
-    {
-        auto &airport_catalog = catalog.Cast<AirportCatalog>();
-        return make_uniq<AirportTransactionManager>(db, airport_catalog);
-    }
-
-    class AirportCatalogStorageExtension : public StorageExtension
-    {
-    public:
-        AirportCatalogStorageExtension()
-        {
-            attach = AirportCatalogAttach;
-            create_transaction_manager = CreateTransactionManager;
-        }
-    };
-
-    static inline void get_user_agent(DataChunk &args, ExpressionState &state, Vector &result)
-    {
-        D_ASSERT(args.ColumnCount() == 0);
-        Value val(airport_user_agent());
-        result.Reference(val, count_t(args.size()));
-    }
-
-    static inline void get_airport_version(DataChunk &args, ExpressionState &state, Vector &result)
-    {
-        D_ASSERT(args.ColumnCount() == 0);
-        Value val(AIRPORT_EXTENSION_VERSION);
-        result.Reference(val, count_t(args.size()));
-    }
-
-    static void AirportAddSimpleFunctions(ExtensionLoader &loader)
-    {
-        CreateScalarFunctionInfo user_agent_info(
-            ScalarFunction("airport_user_agent", {}, LogicalType::VARCHAR, get_user_agent));
-        user_agent_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        FunctionDescription user_agent_desc;
-        user_agent_desc.description = "Return the Airport client identifier sent in the airport-user-agent header of Arrow Flight requests.";
-        user_agent_desc.examples = {"airport_user_agent()"};
-        user_agent_desc.categories = {"airport"};
-        user_agent_info.descriptions.push_back(std::move(user_agent_desc));
-        loader.RegisterFunction(std::move(user_agent_info));
-
-        CreateScalarFunctionInfo version_info(
-            ScalarFunction("airport_version", {}, LogicalType::VARCHAR, get_airport_version));
-        version_info.on_conflict = OnCreateConflict::ALTER_ON_CONFLICT;
-        FunctionDescription version_desc;
-        version_desc.description = "Return the version of the loaded Airport extension.";
-        version_desc.examples = {"airport_version()"};
-        version_desc.categories = {"airport"};
-        version_info.descriptions.push_back(std::move(version_desc));
-        loader.RegisterFunction(std::move(version_info));
-    }
-
-    static void RegisterTableMacro(ExtensionLoader &loader, const string &name, const string &query,
-                                   const vector<string> &params, const child_list_t<Value> &named_params,
-                                   const string &description, const vector<string> &examples)
-    {
-        auto parser = Parser::GetBuiltinParser();
-        parser.ParseQuery(query);
-        const auto &stmt = parser.statements.back();
-        auto &node = stmt->Cast<SelectStatement>().node;
-
-        auto func = make_uniq<TableMacroFunction>(std::move(node));
-        for (auto &param : params)
-        {
-            func->parameters.push_back(make_uniq<ColumnRefExpression>(Identifier(param)));
-        }
-
-        for (auto &param : named_params)
-        {
-            func->default_parameters.insert(Identifier(param.first), ConstantExpression::FromValue(param.second));
-        }
-
-        CreateMacroInfo info(CatalogType::TABLE_MACRO_ENTRY);
-        info.SetQualifiedName(QualifiedName({Identifier::DefaultSchema()}, Identifier(name)));
-        info.temporary = true;
-        info.internal = true;
-        info.macros.push_back(std::move(func));
-
-        FunctionDescription desc;
-        // The macro parameters remain untyped; ANY also matches DuckDB's
-        // UNKNOWN parameter type when selecting the catalog description.
-        desc.parameter_types = vector<LogicalType>(params.size(), LogicalType::ANY);
-        desc.parameter_names = params;
-        desc.description = description;
-        desc.examples = examples;
-        desc.categories = {"airport"};
-        info.descriptions.push_back(std::move(desc));
-
-        loader.RegisterFunction(info);
-    }
-
-    static void AirportAddListDatabasesMacro(ExtensionLoader &loader)
-    {
-        child_list_t<Value> named_params = {
-            //            {"auth_token", Value()},
-            //            {"secret", Value()},
-            // {"headers", Value()},
-        };
-
-        RegisterTableMacro(
-            loader,
-            "airport_databases",
-            "select * from airport_take_flight(server_location, ['__databases'])",
-            //            "select * from airport_take_flight(server_location, ['__databases'], auth_token=auth_token, secret=secret, headers=headers)",
-            {"server_location"},
-            named_params,
-            "List the databases advertised by an Arrow Flight server through its __databases flight.",
-            {"SELECT * FROM airport_databases('grpc://localhost:8815');"});
-    }
-
-    static void LoadInternal(ExtensionLoader &loader)
-    {
-        ExtensionHelper::AutoLoadExtension(loader.GetDatabaseInstance(), "httpfs");
-        if (!loader.GetDatabaseInstance().ExtensionIsLoaded("httpfs"))
-        {
-            throw MissingExtensionException("The airport extension requires the httpfs extension to be loaded!");
-        }
-
-        AirportAddListFlightsFunction(loader);
-        AirportAddTakeFlightFunction(loader);
-        AirportAddSimpleFunctions(loader);
-        AirportAddActionFlightFunction(loader);
-
-        // So to create a new macro for airport_list_databases
-        // that calls airport_take_flight with a fixed flight descriptor
-        // of PATH /__databases
-
-        AirportAddListDatabasesMacro(loader);
-
-        SecretType secret_type;
-        secret_type.name = "airport";
-        secret_type.deserializer = KeyValueSecret::Deserialize<KeyValueSecret>;
-        secret_type.default_provider = "config";
-
-        loader.RegisterSecretType(secret_type);
-
-        CreateSecretFunction airport_secret_function = {"airport", "config", CreateAirportSecretFunction, {{"auth_token", LogicalType::VARCHAR}}};
-        //        AirportSetSecretParameters(airport_secret_function);
-        loader.RegisterFunction(airport_secret_function);
-
-        auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
-        StorageExtension::Register(config, "airport", make_shared_ptr<AirportCatalogStorageExtension>());
-
-        OptimizerExtension airport_optimizer;
-        airport_optimizer.optimize_function = AirportOptimizer::Optimize;
-        OptimizerExtension::Register(config, std::move(airport_optimizer));
-        PlannerExtension airport_planner;
-        airport_planner.post_bind_function = AirportPlanTableInOut;
-        PlannerExtension::Register(config, std::move(airport_planner));
-        //        config.optimizer_extensions.push_back(std::move(airport_optimizer));
-
-        auto &log_manager = loader.GetDatabaseInstance().GetLogManager();
-        log_manager.RegisterLogType(make_uniq<AirportLogType>());
-
-        QueryFarmSendTelemetry(loader, "airport", AIRPORT_EXTENSION_VERSION);
-    }
-
-    void AirportExtension::Load(ExtensionLoader &loader)
-    {
-        LoadInternal(loader);
-    }
-    std::string AirportExtension::Name()
-    {
-        return "airport";
-    }
-
-    static const std::string AIRPORT_VERSION =
-        "user-agent=" + airport_user_agent() + ",client=" + AIRPORT_EXTENSION_VERSION;
-
-    std::string AirportExtension::Version() const
-    {
-        return AIRPORT_VERSION;
-    }
+std::string AirportExtension::Version() const {
+	return EXTENSION_VERSION;
+}
 
 } // namespace duckdb
 
-extern "C"
-{
-    DUCKDB_CPP_EXTENSION_ENTRY(airport, loader)
-    {
-        duckdb::LoadInternal(loader);
-    }
+extern "C" {
+
+DUCKDB_CPP_EXTENSION_ENTRY(airport, loader) {
+	duckdb::LoadFromQueryFarmOrExplain(loader.GetDatabaseInstance());
+}
 }

@@ -2,33 +2,20 @@ name: Main Extension Distribution Pipeline
 on:
   push:
     branches:
-    - v2.0
+    - v2.0-community-stub
   pull_request: null
   workflow_dispatch: null
-  schedule:
-  - cron: 11 3 * * 1-5
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.head_ref || '' }}-${{
     github.base_ref || '' }}-${{ github.ref != 'refs/heads/main' || github.sha }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
     uses: Query-farm/extension-ci-tools/.github/workflows/_extension_distribution.yml@query-farm
     with:
       duckdb_version: v2.0-cyanoptera
-      extension_name: airport
       ci_tools_version: query-farm
-      extra_toolchains: parser_tools
-      exclude_archs: wasm_mvp;wasm_eh;wasm_threads;
-      vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
-      test_config: "{\"test_env_variables\":\n  {\n    \"AIRPORT_TEST_SERVER\": \"\
-        grpc+tls://airport-ci.query.farm\"\n  }\n}\n"
+      extension_name: airport
     secrets:
-      VCPKG_CACHING_AWS_ACCESS_KEY_ID: ${{ secrets.VCPKG_CACHING_AWS_ACCESS_KEY_ID
-        }}
-      VCPKG_CACHING_AWS_SECRET_ACCESS_KEY: ${{ secrets.VCPKG_CACHING_AWS_SECRET_ACCESS_KEY
-        }}
-      VCPKG_CACHING_AWS_ENDPOINT_URL: ${{ secrets.VCPKG_CACHING_AWS_ENDPOINT_URL }}
-      VCPKG_CACHING_AWS_DEFAULT_REGION: ${{ secrets.VCPKG_CACHING_AWS_DEFAULT_REGION}}
       ccache_remote_token: ${{ secrets.QUERY_FARM_CCACHE_TOKEN }}

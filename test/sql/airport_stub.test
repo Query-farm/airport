@@ -1,0 +1,43 @@
+# name: test/sql/airport_stub.test
+# description: The community build of airport explains how to install the extension from the Query.Farm repository
+# group: [airport]
+
+# keep the test independent of repositories and extensions configured in the home directory
+statement ok
+SET extension_repository_directory='{TEST_DIR}/extension_repositories'
+
+statement ok
+SET extension_directory='{TEST_DIR}/extensions'
+
+# no query_farm repository: explain how to add it
+statement error
+LOAD '{BUILD_DIRECTORY}/extension/airport/airport.duckdb_extension'
+----
+<REGEX>:.*Query\.Farm extension repository.*CREATE EXTENSION REPOSITORY IF NOT EXISTS query_farm WITH PREFIX 'https://duckdb-extensions\.query\.farm'.*INSTALL airport FROM query_farm.*LOAD airport FROM query_farm.*
+
+# a repository named query_farm that points elsewhere is not used
+statement ok
+CREATE EXTENSION REPOSITORY query_farm WITH PREFIX 'http://extensions.example.com' USING PUBLIC KEY 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwDrhV7fERQExCTYqwcpyAGEVUeWZFGuC0x4+oZquZvd0u0Y+1jNedBSAk3j8zAiwDLpab3qpB8+XHXA4Xe/MJSOop97G1u5zlwUHz3N1upkl7mRbLF9fwzc+aPTprpnI9EoQAdHXrMWRFEGeStTR/GFsc2E2uwN47KkQuU8ZVQIFrQfo8XZjam/PW4lWFkBDCeEfmBOXmx58u9/xzOMHQElJua3gbyfXqm+BDQmQ6tmo+CU0B+l19Yt9aJx5rlDT7h4ymBdx6bczEx8dOfLswI+g9G+igjdCNmNimfvajJF39soN6s+t8Q7Ai/zV7In2F0hiP+JY9yZ76DmW79mKRwIDAQAB'
+
+statement error
+LOAD '{BUILD_DIRECTORY}/extension/airport/airport.duckdb_extension'
+----
+<REGEX>:.*A repository named query_farm is configured with the prefix 'http://extensions\.example\.com', but it is not the Query\.Farm extension repository.*CREATE OR REPLACE EXTENSION REPOSITORY query_farm WITH PREFIX 'https://duckdb-extensions\.query\.farm'.*FORCE INSTALL airport FROM query_farm.*
+
+# the Query.Farm prefix with a key that is not a Query.Farm signing key is not used either
+statement ok
+CREATE OR REPLACE EXTENSION REPOSITORY query_farm WITH PREFIX 'https://duckdb-extensions.query.farm/' USING PUBLIC KEY 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt9+KeDkWJa7SiBb7AMdXAPV2qpRunztoC2c7DtRmN9+Lq2YQm4rMQmmAQcwyxTxcK8vwPKOiE4mLMwmQMvTty9tL+buREfvg5KJ+FY3Bv05cZYsf7VuYgUDcw41zSEE5W1thh5PiafcrMn7CPF0jN0oFfVvAHB/fAM0yaZGPKs3WYqnHAHa6v/cVMeiWZ/lQORCBqqL2hii1fEiuIqw6AOEoZVsN0/lqm7GfnD899zrzLOPRuP4YFg46drL1UyNdg+4TquJ2OV9kR4CAfdGRexqHFWLmoxkTfnUxJ4yL+gkV57K1H+smEdKrDhDX68pEFM/34E2eVKZoRU/0paxDZQIDAQAB'
+
+statement error
+LOAD '{BUILD_DIRECTORY}/extension/airport/airport.duckdb_extension'
+----
+<REGEX>:.*A repository named query_farm is configured with the prefix 'https://duckdb-extensions\.query\.farm/', but it is not the Query\.Farm extension repository.*
+
+# the real repository, but the extension is not installed from it yet
+statement ok
+CREATE OR REPLACE EXTENSION REPOSITORY query_farm WITH PREFIX 'https://duckdb-extensions.query.farm' USING PUBLIC KEY 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwDrhV7fERQExCTYqwcpyAGEVUeWZFGuC0x4+oZquZvd0u0Y+1jNedBSAk3j8zAiwDLpab3qpB8+XHXA4Xe/MJSOop97G1u5zlwUHz3N1upkl7mRbLF9fwzc+aPTprpnI9EoQAdHXrMWRFEGeStTR/GFsc2E2uwN47KkQuU8ZVQIFrQfo8XZjam/PW4lWFkBDCeEfmBOXmx58u9/xzOMHQElJua3gbyfXqm+BDQmQ6tmo+CU0B+l19Yt9aJx5rlDT7h4ymBdx6bczEx8dOfLswI+g9G+igjdCNmNimfvajJF39soN6s+t8Q7Ai/zV7In2F0hiP+JY9yZ76DmW79mKRwIDAQAB'
+
+statement error
+LOAD '{BUILD_DIRECTORY}/extension/airport/airport.duckdb_extension'
+----
+<REGEX>:.*The query_farm repository is already configured\. Install the extension from it once.*INSTALL airport FROM query_farm.*
