@@ -4,7 +4,12 @@ on:
     branches:
     - v2.0
   pull_request: null
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Sign and verify, but upload nothing to the Query.Farm repository
+        type: boolean
+        default: false
   schedule:
   - cron: 11 3 * * 1-5
 concurrency:
@@ -14,21 +19,29 @@ concurrency:
 jobs:
   duckdb-stable-build:
     name: Build extension binaries
-    uses: Query-farm/extension-ci-tools/.github/workflows/_extension_distribution.yml@query-farm
+    uses: Query-farm/extension-ci-tools/.github/workflows/build.yml@query-farm
     with:
-      duckdb_version: v2.0-cyanoptera
-      extension_name: airport
+      duckdb_version: v2.0.0
       ci_tools_version: query-farm
-      extra_toolchains: parser_tools
-      exclude_archs: wasm_mvp;wasm_eh;wasm_threads;
-      vcpkg_binary_sources: ${{ vars.VCPKG_BINARY_SOURCES }}
-      test_config: "{\"test_env_variables\":\n  {\n    \"AIRPORT_TEST_SERVER\": \"\
-        grpc+tls://airport-ci.query.farm\"\n  }\n}\n"
+      groups: |
+        main:
+          config: extension_config.cmake
+          toolchain: main
+          extra_toolchains: parser_tools
+      exclude_archs: wasm_mvp;wasm_eh;wasm_threads
+      test_config: '{"test_env_variables":{"AIRPORT_TEST_SERVER":"grpc+tls://airport-ci.query.farm"}}'
     secrets:
-      VCPKG_CACHING_AWS_ACCESS_KEY_ID: ${{ secrets.VCPKG_CACHING_AWS_ACCESS_KEY_ID
-        }}
-      VCPKG_CACHING_AWS_SECRET_ACCESS_KEY: ${{ secrets.VCPKG_CACHING_AWS_SECRET_ACCESS_KEY
-        }}
-      VCPKG_CACHING_AWS_ENDPOINT_URL: ${{ secrets.VCPKG_CACHING_AWS_ENDPOINT_URL }}
-      VCPKG_CACHING_AWS_DEFAULT_REGION: ${{ secrets.VCPKG_CACHING_AWS_DEFAULT_REGION}}
       ccache_remote_token: ${{ secrets.QUERY_FARM_CCACHE_TOKEN }}
+  duckdb-deploy:
+    name: Deploy to duckdb-extensions.query.farm
+    needs: duckdb-stable-build
+    if: github.event_name != 'pull_request' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/v2.0' || startsWith(github.ref, 'refs/tags/'))
+    uses: Query-farm/extension-ci-tools/.github/workflows/_query_farm_deploy.yml@query-farm
+    with:
+      extension_name: airport
+      duckdb_version: v2.0.0
+      dry_run: ${{ inputs.dry_run == true }}
+    secrets:
+      signing_key: ${{ secrets.QUERY_FARM_EXTENSION_SIGNING_KEY }}
+      r2_access_key_id: ${{ secrets.QUERY_FARM_R2_ACCESS_KEY_ID }}
+      r2_secret_access_key: ${{ secrets.QUERY_FARM_R2_SECRET_ACCESS_KEY }}
