@@ -45,3 +45,4 @@ jobs:
       signing_key: ${{ secrets.QUERY_FARM_EXTENSION_SIGNING_KEY }}
       r2_access_key_id: ${{ secrets.QUERY_FARM_R2_ACCESS_KEY_ID }}
       r2_secret_access_key: ${{ secrets.QUERY_FARM_R2_SECRET_ACCESS_KEY }}
+      cloudflare_purge_token: ${{ secrets.QUERY_FARM_CLOUDFLARE_PURGE_TOKEN }}
