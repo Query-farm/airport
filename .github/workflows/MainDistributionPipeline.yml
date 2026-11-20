@@ -21,7 +21,7 @@ jobs:
     name: Build extension binaries
     uses: Query-farm/extension-ci-tools/.github/workflows/build.yml@query-farm
     with:
-      duckdb_version: v2.0.0
+      duckdb_version: v2.0.1
       ci_tools_version: query-farm
       groups: |
         main:
@@ -39,7 +39,7 @@ jobs:
     uses: Query-farm/extension-ci-tools/.github/workflows/_query_farm_deploy.yml@query-farm
     with:
       extension_name: airport
-      duckdb_version: v2.0.0
+      duckdb_version: v2.0.1
       dry_run: ${{ inputs.dry_run == true }}
     secrets:
       signing_key: ${{ secrets.QUERY_FARM_EXTENSION_SIGNING_KEY }}
